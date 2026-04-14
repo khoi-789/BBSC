@@ -320,10 +320,10 @@ export default function ReportTable() {
                 ) : (
                   <>
                     <th className="whitespace-nowrap">Sản phẩm (đại diện)</th>
-                    <th className="whitespace-nowrap">Tag</th>
                   </>
                 )}
 
+                <th className="whitespace-nowrap">Tag</th>
                 <th className="whitespace-nowrap">Bộ phận</th>
                 <th className="whitespace-nowrap sticky-right-1">Trạng thái</th>
                 <th className="whitespace-nowrap sticky-right-0">Thao tác</th>
@@ -371,6 +371,17 @@ export default function ReportTable() {
                       <td className="text-[11px] max-w-[120px] truncate" title={item.asn}>{item.asn || '—'}</td>
                       <td className="text-[11px] whitespace-nowrap max-w-[150px] truncate" title={item.detailedDescription}>{item.detailedDescription || '—'}</td>
                       <td className="text-[11px] italic text-slate-500 truncate max-w-[100px]" title={item.note}>{item.note}</td>
+
+                      <td className="whitespace-nowrap">
+                        {idx === 0 && r.header.tags ? (
+                          <span 
+                            className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-sm"
+                            style={{ backgroundColor: tags.find(t => t.value === r.header.tags)?.color || '#f59e0b' }}
+                          >
+                            {r.header.tags}
+                          </span>
+                        ) : idx === 0 ? '—' : ''}
+                      </td>
 
                       <td className="text-[11px] text-slate-600 whitespace-nowrap">{idx === 0 ? r.header.dept : ''}</td>
                       <td className="whitespace-nowrap sticky-right-1">{idx === 0 ? <StatusBadge status={r.header.status} /> : null}</td>
