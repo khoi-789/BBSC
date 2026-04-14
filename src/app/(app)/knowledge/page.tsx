@@ -10,6 +10,17 @@ export default function KnowledgeBase() {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [searchDetail, setSearchDetail] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedDetail, setDebouncedDetail] = useState('');
+
+  // Debounce effect to prevent hanging on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchText);
+      setDebouncedDetail(searchDetail);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText, searchDetail]);
 
   useEffect(() => {
     async function load() {
@@ -39,34 +50,43 @@ export default function KnowledgeBase() {
       date: string
     }[] = [];
 
+    // Pre-filter reports roughly if search is active to reduce nesting work
+    const searchLower = debouncedSearch.toLowerCase();
+    const detailLower = debouncedDetail.toLowerCase();
+
     reports.forEach(r => {
       r.items.forEach((item, idx) => {
-        flatCases.push({
-          reportId: r.reportId,
-          id: `${r.id}-${idx}`,
-          docId: r.id,
-          incidentType: r.header.incidentType,
-          itemName: item.itemName || '—',
-          phenomenon: item.note || r.header.note || 'Không có mô tả chi tiết',
-          solution: r.header.immediateAction || 'Chưa cập nhật giải pháp',
-          date: r.header.createdDate
-        });
+        const itemName = item.itemName || '—';
+        const phenomenon = item.note || r.header.note || 'Không có mô tả chi tiết';
+        const solution = r.header.immediateAction || 'Chưa cập nhật giải pháp';
+        const type = r.header.incidentType;
+
+        const matchText = !debouncedSearch || 
+          itemName.toLowerCase().includes(searchLower) || 
+          r.reportId.toLowerCase().includes(searchLower);
+        
+        const matchDetail = !debouncedDetail || 
+          phenomenon.toLowerCase().includes(detailLower) ||
+          solution.toLowerCase().includes(detailLower) ||
+          type.toLowerCase().includes(detailLower);
+
+        if (matchText && matchDetail) {
+          flatCases.push({
+            reportId: r.reportId,
+            id: `${r.id}-${idx}`,
+            docId: r.id,
+            incidentType: type,
+            itemName: itemName,
+            phenomenon: phenomenon,
+            solution: solution,
+            date: r.header.createdDate
+          });
+        }
       });
     });
 
-    return flatCases.filter(c => {
-      const matchText = !searchText || 
-        c.itemName.toLowerCase().includes(searchText.toLowerCase()) || 
-        c.reportId.toLowerCase().includes(searchText.toLowerCase());
-      
-      const matchDetail = !searchDetail || 
-        c.phenomenon.toLowerCase().includes(searchDetail.toLowerCase()) ||
-        c.solution.toLowerCase().includes(searchDetail.toLowerCase()) ||
-        c.incidentType.toLowerCase().includes(searchDetail.toLowerCase());
-        
-      return matchText && matchDetail;
-    }).sort((a,b) => b.date.localeCompare(a.date));
-  }, [reports, searchText, searchDetail]);
+    return flatCases.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 100);
+  }, [reports, debouncedSearch, debouncedDetail]);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr || !dateStr.includes('-')) return dateStr;
