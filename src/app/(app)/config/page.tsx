@@ -125,11 +125,18 @@ function ConfigContent() {
     }
     try {
       setIsProcessing(true);
-      await updateMasterDataItem(editingId, { 
-        value: editValue.trim(),
-        color: activeTab === MASTER_GROUPS.TAG ? editColor : undefined,
-        isUrgent: activeTab === MASTER_GROUPS.INCIDENT_TYPE ? editUrgent : undefined
-      });
+      
+      const updateData: any = { value: editValue.trim() };
+      
+      if (activeTab === MASTER_GROUPS.TAG) {
+        updateData.color = editColor;
+      }
+      
+      if (activeTab === MASTER_GROUPS.INCIDENT_TYPE) {
+        updateData.isUrgent = editUrgent;
+      }
+
+      await updateMasterDataItem(editingId, updateData);
       toast('Cập nhật thành công', 'success');
       setEditingId(null);
       await loadMasterData();
