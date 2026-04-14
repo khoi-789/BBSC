@@ -311,7 +311,7 @@ export default function ReportTable() {
           <table className="data-table">
             <thead>
               <tr>
-                <th className="whitespace-nowrap rounded-tl-lg">Mã sự cố</th>
+                <th className="whitespace-nowrap sticky-left">Mã sự cố</th>
                 <th className="whitespace-nowrap">Ngày lập</th>
                 <th className="whitespace-nowrap">Nhà cung cấp</th>
                 
@@ -344,8 +344,8 @@ export default function ReportTable() {
                 )}
 
                 <th className="whitespace-nowrap">Bộ phận</th>
-                <th className="whitespace-nowrap">Trạng thái</th>
-                <th className="whitespace-nowrap rounded-tr-lg">Thao tác</th>
+                <th className="whitespace-nowrap sticky-right-1">Trạng thái</th>
+                <th className="whitespace-nowrap sticky-right-0">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -362,7 +362,7 @@ export default function ReportTable() {
 
                   return (
                     <tr key={`${r.id}-${item.id || idx}`} className={`${idx > 0 ? 'bg-slate-50/70 translate-z-0' : 'bg-white font-semibold border-t-2 border-slate-100'} h-[45px]`}>
-                      <td className="whitespace-nowrap">
+                      <td className="whitespace-nowrap sticky-left">
                         {idx === 0 ? (
                           <Link href={`/dashboard/${r.id}`} className="text-blue-600 hover:underline">
                             {r.reportId}
@@ -392,8 +392,8 @@ export default function ReportTable() {
                       <td className="text-[11px] italic text-slate-500 truncate max-w-[100px]" title={item.note}>{item.note}</td>
 
                       <td className="text-[11px] text-slate-600 whitespace-nowrap">{idx === 0 ? r.header.dept : ''}</td>
-                      <td className="whitespace-nowrap">{idx === 0 ? <StatusBadge status={r.header.status} /> : null}</td>
-                      <td className="whitespace-nowrap">
+                      <td className="whitespace-nowrap sticky-right-1">{idx === 0 ? <StatusBadge status={r.header.status} /> : null}</td>
+                      <td className="whitespace-nowrap sticky-right-0">
                         {idx === 0 ? (
                           <div className="flex items-center gap-1">
                             {canEdit(r) && (
@@ -422,7 +422,7 @@ export default function ReportTable() {
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-50 border-t border-slate-100 h-[45px]">
-                      <td className="whitespace-nowrap font-medium">
+                      <td className="whitespace-nowrap font-medium sticky-left">
                         <Link href={`/dashboard/${r.id}`} className="text-blue-600 hover:underline">
                           {r.reportId}
                         </Link>
@@ -450,8 +450,8 @@ export default function ReportTable() {
                         ) : '—'}
                       </td>
                       <td className="text-sm text-slate-600 whitespace-nowrap">{r.header.dept}</td>
-                      <td className="whitespace-nowrap"><StatusBadge status={r.header.status} /></td>
-                      <td className="whitespace-nowrap">
+                      <td className="whitespace-nowrap sticky-right-1"><StatusBadge status={r.header.status} /></td>
+                      <td className="whitespace-nowrap sticky-right-0">
                         <div className="flex items-center gap-1">
                           {canEdit(r) && (
                             <Link href={`/dashboard/${r.id}/edit`} className="btn btn-icon btn-ghost btn-sm" title="Sửa">
