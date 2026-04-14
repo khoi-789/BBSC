@@ -56,14 +56,13 @@ export default function TasksPage() {
     return 0;
   };
 
-  const filtered = useMemo(() => {
-    // Create a fast lookup for urgent incident types
-    const urgentTypes = new Set(
-      (masterData['incident_type'] || [])
-        .filter(t => t.isUrgent)
-        .map(t => t.value)
-    );
+  const urgentTypes = useMemo(() => new Set(
+    (masterData['incident_type'] || [])
+      .filter(t => t.isUrgent)
+      .map(t => t.value)
+  ), [masterData]);
 
+  const filtered = useMemo(() => {
     return reports.filter(r => {
       const matchUser = !filterUser || r.header.pic === filterUser || r.header.subPic === filterUser;
       const matchType = !filterType || r.header.incidentType === filterType;
@@ -90,7 +89,7 @@ export default function TasksPage() {
       const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : 0;
       return aTime - bTime;
     });
-  }, [reports, filterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent, masterData]);
+  }, [reports, filterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent, urgentTypes]);
 
   const urgentCount = reports.filter(r => r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold')).length;
 
