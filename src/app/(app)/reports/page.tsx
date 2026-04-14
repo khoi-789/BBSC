@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Treemap
 } from 'recharts';
-import { Filter, Calendar, BarChart3, PieChart as PieIcon, Activity, TrendingUp, Users } from 'lucide-react';
+import { Filter, Calendar, BarChart3, PieChart as PieIcon, Activity, TrendingUp, Users, Building2, CheckSquare } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isWithinInterval, parseISO } from 'date-fns';
 
 const COLORS = ['#1a56a0', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
@@ -300,8 +300,8 @@ export default function ReportsPage() {
               <div className='xl:col-span-2 card bg-slate-50 !border-none !p-6'>
                 <h3 className='text-sm font-bold text-slate-700 mb-4'>Insight: Tỉ lệ lỗi tập trung ở đâu?</h3>
                 <p className='text-xs text-slate-500 leading-relaxed'>
-                  Dựa trên dữ liệu đã lọc, hệ thống ghi nhận <strong>{filteredData[0]?.header.incidentType || '...'}</strong> là loại sự cố phổ biến nhất. 
-                  Bộ phận <strong>{deptData[0]?.name || '...'}</strong> hiện đang xử lý khối lượng BBSC lớn nhất với {deptData[0]?.value} phiếu. 
+                  Dựa trên dữ liệu đã lọc, hệ thống ghi nhận <strong>{filteredData[0]?.header?.incidentType || '...'}</strong> là loại sự cố phổ biến nhất. 
+                  Bộ phận <strong>{deptData[0]?.name || '...'}</strong> hiện đang xử lý khối lượng BBSC lớn nhất với {deptData[0]?.value || 0} phiếu. 
                   Đề xuất tập trung nguồn lực kiểm soát cho nhóm hàng <strong>{classificationData[0]?.name || '...'}</strong> để giảm thiểu rủi ro.
                 </p>
               </div>
