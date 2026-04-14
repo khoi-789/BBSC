@@ -111,7 +111,9 @@ export default function ReportsPage() {
       const t = r.header?.incidentType || 'Khác';
       counts[t] = (counts[t] || 0) + 1;
     });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
   const classificationData = useMemo(() => {
@@ -120,7 +122,22 @@ export default function ReportsPage() {
       const cls = r.header?.classification || 'Khác';
       counts[cls] = (counts[cls] || 0) + 1;
     });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    
+    const rawData = Object.entries(counts).map(([name, value]) => ({ name, value }));
+    const total = rawData.reduce((sum, item) => sum + item.value, 0);
+    
+    if (total === 0) return [];
+
+    // Group items < 3% into "Khác"
+    const threshold = total * 0.03;
+    const mainItems = rawData.filter(item => item.value >= threshold);
+    const otherValue = rawData.filter(item => item.value < threshold).reduce((sum, item) => sum + item.value, 0);
+    
+    if (otherValue > 0) {
+      mainItems.push({ name: 'Khác', value: otherValue });
+    }
+    
+    return mainItems.sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
   const topSuppliers = useMemo(() => {
@@ -310,7 +327,7 @@ export default function ReportsPage() {
                         cx="50%" cy="50%"
                         outerRadius={90}
                         dataKey="value"
-                        label={({ name, value }) => `${name} (${value})`}
+                        label={({ percent }) => (percent > 0.1 ? '' : '')} // Hide redundant labels
                         stroke="none"
                       >
                         {classificationData.map((entry, index) => (
@@ -318,6 +335,7 @@ export default function ReportsPage() {
                         ))}
                       </Pie>
                       <Tooltip />
+                      <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: '10px' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
