@@ -164,25 +164,25 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className='card !p-3 flex flex-wrap items-end gap-4 shadow-sm border border-white/50 bg-white/80 backdrop-blur'>
-        <div className='flex-1 min-w-[180px]'>
-          <label className='form-label flex items-center gap-1.5'><Calendar size={14} className='text-blue-500' /> Từ ngày</label>
-          <input type="date" className='form-input !h-9' value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+      <div className='card !p-2 flex flex-wrap items-center gap-x-6 gap-y-3 shadow-sm border border-white/50 bg-white/80 backdrop-blur'>
+        <div className='flex items-center gap-2'>
+          <label className='text-[11px] font-bold text-slate-500 whitespace-nowrap flex items-center gap-1'><Calendar size={13} className='text-blue-500' /> Từ ngày</label>
+          <input type="date" className='form-input !h-8 !text-[12px] !min-w-[130px]' value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
         </div>
-        <div className='flex-1 min-w-[180px]'>
-          <label className='form-label flex items-center gap-1.5'><Calendar size={14} className='text-blue-500' /> Đến ngày</label>
-          <input type="date" className='form-input !h-9' value={dateTo} onChange={e => setDateTo(e.target.value)} />
+        <div className='flex items-center gap-2'>
+          <label className='text-[11px] font-bold text-slate-500 whitespace-nowrap flex items-center gap-1'><Calendar size={13} className='text-blue-500' /> Đến ngày</label>
+          <input type="date" className='form-input !h-8 !text-[12px] !min-w-[130px]' value={dateTo} onChange={e => setDateTo(e.target.value)} />
         </div>
-        <div className='flex-1 min-w-[180px]'>
-          <label className='form-label flex items-center gap-1.5'><Building2 size={14} className='text-blue-500' /> Bộ phận</label>
-          <select className='form-select !h-9' value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+        <div className='flex items-center gap-2'>
+          <label className='text-[11px] font-bold text-slate-500 whitespace-nowrap flex items-center gap-1'><Building2 size={13} className='text-blue-500' /> Bộ phận</label>
+          <select className='form-select !h-8 !text-[12px] !min-w-[140px]' value={filterDept} onChange={e => setFilterDept(e.target.value)}>
             <option value="">-- Tất cả --</option>
             {masterData['dept']?.map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
           </select>
         </div>
-        <div className='flex-1 min-w-[180px]'>
-          <label className='form-label flex items-center gap-1.5'><Filter size={14} className='text-blue-500' /> Loại sự cố</label>
-          <select className='form-select !h-9' value={filterType} onChange={e => setFilterType(e.target.value)}>
+        <div className='flex items-center gap-2'>
+          <label className='text-[11px] font-bold text-slate-500 whitespace-nowrap flex items-center gap-1'><Filter size={13} className='text-blue-500' /> Loại sự cố</label>
+          <select className='form-select !h-8 !text-[12px] !min-w-[140px]' value={filterType} onChange={e => setFilterType(e.target.value)}>
             <option value="">-- Tất cả --</option>
             {masterData['incident_type']?.map(i => <option key={i.key} value={i.key}>{i.value}</option>)}
           </select>
