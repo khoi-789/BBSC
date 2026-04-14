@@ -4,10 +4,12 @@ import { getReports } from '@/lib/services/reports';
 import { updateReport } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { useAppStore } from '@/stores/appStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { AlertTriangle, Pencil } from 'lucide-react';
+import { AlertTriangle, Pencil, Search, CheckSquare, RefreshCw, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
