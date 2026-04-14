@@ -405,14 +405,4 @@ export default function ReportsPage() {
       </div>
     </div>
   );
-}-3 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-50 transition-colors flex items-center gap-2'>
-                    <TrendingUp size={18} /> TẢI XUỐNG BÁO CÁO (.PDF)
-                  </button>
-               </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
