@@ -57,6 +57,13 @@ export default function TasksPage() {
   };
 
   const filtered = useMemo(() => {
+    // Create a fast lookup for urgent incident types
+    const urgentTypes = new Set(
+      (masterData['incident_type'] || [])
+        .filter(t => t.isUrgent)
+        .map(t => t.value)
+    );
+
     return reports.filter(r => {
       const matchUser = !filterUser || r.header.pic === filterUser || r.header.subPic === filterUser;
       const matchType = !filterType || r.header.incidentType === filterType;
@@ -66,12 +73,24 @@ export default function TasksPage() {
         r.items.some(i => i.itemName?.toLowerCase().includes(searchProduct.toLowerCase()) || i.itemCode?.toLowerCase().includes(searchProduct.toLowerCase())) ||
         r.reportId.toLowerCase().includes(searchProduct.toLowerCase());
       
-      const isUrgent = r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold');
-      const matchUrgent = !onlyUrgent || isUrgent;
+      const isUrgentTag = r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold');
+      const matchUrgent = !onlyUrgent || isUrgentTag || urgentTypes.has(r.header.incidentType);
 
       return matchUser && matchType && matchClass && matchStatus && matchSearch && matchUrgent;
+    }).sort((a, b) => {
+      // Priority 1: Configuration Urgency OR Tag Urgency
+      const aUrgent = urgentTypes.has(a.header.incidentType) || a.header.tags === 'Gấp' || a.header.tags?.toLowerCase().includes('hold');
+      const bUrgent = urgentTypes.has(b.header.incidentType) || b.header.tags === 'Gấp' || b.header.tags?.toLowerCase().includes('hold');
+
+      if (aUrgent && !bUrgent) return -1;
+      if (!aUrgent && bUrgent) return 1;
+
+      // Priority 2: Stale time (oldest update first)
+      const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : 0;
+      const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : 0;
+      return aTime - bTime;
     });
-  }, [reports, filterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent]);
+  }, [reports, filterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent, masterData]);
 
   const urgentCount = reports.filter(r => r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold')).length;
 

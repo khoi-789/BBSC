@@ -29,6 +29,7 @@ export interface MasterDataItem {
   isActive: boolean;
   group: string;
   color?: string; // Hex color for Tags e.g. #ff0000
+  isUrgent?: boolean; // Flag for urgent incident types
 }
 
 export interface MasterDataMap {

@@ -58,12 +58,13 @@ function ConfigContent() {
   }, [tabParam]);
   const [adding, setAdding] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [newItem, setNewItem] = useState({ key: '', value: '', color: '#3b82f6' });
+  const [newItem, setNewItem] = useState({ key: '', value: '', color: '#3b82f6', isUrgent: false });
 
   // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editColor, setEditColor] = useState('#3b82f6');
+  const [editUrgent, setEditUrgent] = useState(false);
 
   const items: MasterDataItem[] = masterData[activeTab] || [];
 
@@ -75,7 +76,7 @@ function ConfigContent() {
       await addMasterDataItem({ ...newItem, group: activeTab, order: nextOrder, isActive: true });
       toast('Đã thêm thành công', 'success');
       setAdding(false);
-      setNewItem({ key: '', value: '', color: '#3b82f6' });
+      setNewItem({ key: '', value: '', color: '#3b82f6', isUrgent: false });
       await loadMasterData();
     } catch (e: any) {
       toast(e.message, 'error');
@@ -113,6 +114,7 @@ function ConfigContent() {
     setEditingId(item.id);
     setEditValue(item.value);
     setEditColor(item.color || '#3b82f6');
+    setEditUrgent(!!item.isUrgent);
   }
 
   async function saveEdit() {
@@ -124,7 +126,8 @@ function ConfigContent() {
       setIsProcessing(true);
       await updateMasterDataItem(editingId, { 
         value: editValue.trim(),
-        color: activeTab === MASTER_GROUPS.TAG ? editColor : undefined
+        color: activeTab === MASTER_GROUPS.TAG ? editColor : undefined,
+        isUrgent: activeTab === MASTER_GROUPS.INCIDENT_TYPE ? editUrgent : undefined
       });
       toast('Cập nhật thành công', 'success');
       setEditingId(null);
@@ -251,6 +254,22 @@ function ConfigContent() {
                   </div>
                 </div>
               )}
+
+              {activeTab === MASTER_GROUPS.INCIDENT_TYPE && (
+                <div className="flex flex-col gap-1 mb-1.5 px-1">
+                   <label className="text-[10px] uppercase text-red-600 font-bold">Ưu tiên Gấp</label>
+                   <label className="flex items-center gap-2 cursor-pointer bg-white h-[42px] px-3 rounded-xl border border-slate-200">
+                     <input 
+                       type="checkbox" 
+                       className="rounded text-red-600" 
+                       checked={newItem.isUrgent}
+                       onChange={e => setNewItem({...newItem, isUrgent: e.target.checked})}
+                     />
+                     <span className="text-xs font-bold text-red-600">GẤP</span>
+                   </label>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button className="btn btn-primary px-6 h-[42px] rounded-xl font-bold shadow-lg shadow-blue-200" onClick={handleAdd} disabled={isProcessing}>
                   Lưu mới
@@ -266,6 +285,7 @@ function ConfigContent() {
                 <tr className="!bg-slate-50/80">
                   <th style={{ width: 150 }} className="rounded-tl-xl">Mã</th>
                   <th>Tên hiển thị</th>
+                  {activeTab === MASTER_GROUPS.INCIDENT_TYPE && <th style={{ width: 80 }} className="text-center">Gấp</th>}
                   <th style={{ width: 120 }}>Trạng thái</th>
                   <th style={{ width: 240 }} className="text-right px-6 rounded-tr-xl">Thao tác</th>
                 </tr>
@@ -297,6 +317,17 @@ function ConfigContent() {
                                 <span className="text-[10px] text-slate-400 uppercase font-mono">{editColor}</span>
                               </div>
                             )}
+                            {activeTab === MASTER_GROUPS.INCIDENT_TYPE && (
+                              <label className="flex items-center gap-2 mt-1 px-1 py-1 rounded-lg bg-red-50 w-fit">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded text-red-600" 
+                                  checked={editUrgent}
+                                  onChange={e => setEditUrgent(e.target.checked)}
+                                />
+                                <span className="text-[10px] font-bold text-red-600">GẤP</span>
+                              </label>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
@@ -310,6 +341,15 @@ function ConfigContent() {
                           </div>
                         )}
                       </td>
+                      {activeTab === MASTER_GROUPS.INCIDENT_TYPE && (
+                        <td className="text-center">
+                          {item.isUrgent ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600">
+                              <AlertTriangle size={14} />
+                            </span>
+                          ) : <span className="text-slate-200">—</span>}
+                        </td>
+                      )}
                       <td>
                         <span className={`badge ${item.isActive ? 'badge-green' : 'badge-gray'}`}>
                           {item.isActive ? 'Hoạt động' : 'Đã ẩn'}
