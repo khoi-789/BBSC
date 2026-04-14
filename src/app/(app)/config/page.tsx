@@ -19,7 +19,8 @@ import {
   Edit2, 
   Trash2, 
   Check, 
-  X 
+  X,
+  AlertTriangle
 } from 'lucide-react';
 
 const TABS = [
