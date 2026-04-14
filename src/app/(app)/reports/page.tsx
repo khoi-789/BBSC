@@ -5,7 +5,7 @@ import { BBSCReport } from '@/types';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function ReportsPage() {
-  const [reports, setReports] = useState([]);
+  const [reports, setReports] = useState<BBSCReport[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { getReports().then(data => { setReports(data); setLoading(false); }); }, []);
   if (loading) return <div className='text-center py-20 text-slate-400'>Đang tải dữ liệu...</div>;
