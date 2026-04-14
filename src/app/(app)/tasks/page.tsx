@@ -199,10 +199,12 @@ export default function TasksPage() {
           {filtered.map(r => {
             const staleLevel = getStaleLevel(r);
             const lastTask = r.tasks?.[r.tasks.length - 1];
-            const isGap = r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold');
+            const isUrgentConfig = urgentTypes.has(r.header.incidentType);
+            const isUrgentTag = r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold');
+            const isGap = isUrgentConfig || isUrgentTag;
 
             return (
-              <div key={r.id} className={`group bg-white rounded-2xl border-2 transition-all duration-300 p-4 flex flex-col gap-3 shadow-sm hover:shadow-xl ${staleLevel > 0 ? 'border-red-100' : 'border-slate-100 hover:border-blue-200'}`}>
+              <div key={r.id} className={`group relative bg-white rounded-2xl border-2 transition-all duration-300 p-4 flex flex-col gap-3 shadow-sm hover:shadow-xl ${isGap ? 'border-l-4 border-l-red-600 border-red-100' : staleLevel > 0 ? 'border-red-100' : 'border-slate-100 hover:border-blue-200'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Link href={`/dashboard/${r.id}`} className="text-blue-700 font-black text-xs hover:underline tracking-tight">
