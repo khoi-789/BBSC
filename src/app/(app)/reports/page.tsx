@@ -265,7 +265,6 @@ export default function ReportsPage() {
                         innerRadius={60} outerRadius={90}
                         paddingAngle={5}
                         dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
                         stroke="none"
                       >
                         {statusData.map((entry, index) => (
@@ -327,7 +326,6 @@ export default function ReportsPage() {
                         cx="50%" cy="50%"
                         outerRadius={90}
                         dataKey="value"
-                        label={({ percent }) => (percent > 0.1 ? '' : '')} // Hide redundant labels
                         stroke="none"
                       >
                         {classificationData.map((entry, index) => (
