@@ -104,7 +104,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           ))}
 
           {/* Admin section */}
-          {isManager && (
+          {isAdmin && (
             <>
               <div className="sidebar-section-label">Quản trị</div>
               
