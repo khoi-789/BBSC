@@ -11,11 +11,12 @@ if (!admin.apps.length) {
           privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
         }),
       });
-    } else {
+    } else if (process.env.NODE_ENV === 'development') {
       // --- LOCAL DEVELOPMENT ONLY ---
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const serviceAccount = require('../../scripts/serviceAccountKey.json');
+        // Use eval('require') to prevent Next.js from trying to bundle this file in Production
+        const dynamicRequire = eval('require');
+        const serviceAccount = dynamicRequire('../../scripts/serviceAccountKey.json');
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
