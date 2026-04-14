@@ -23,29 +23,20 @@ const formatDateDisplay = (dateStr: string) => {
 
 export default function ReportTable() {
   const { profile } = useAuthStore();
-  const { masterData } = useAppStore();
+  const { masterData, reportFilters, setReportFilters, resetReportFilters } = useAppStore();
   const { toast } = useToast();
 
   const [reports, setReports] = useState<BBSCReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  
-  // Advanced filters
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [filterSupplier, setFilterSupplier] = useState('');
-  const [filterClass, setFilterClass] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterDept, setFilterDept] = useState('');
-  const [filterPic, setFilterPic] = useState('');
-  const [filterTag, setFilterTag] = useState('');
-  const [filterTerm, setFilterTerm] = useState(''); 
 
-  const [detailClassification, setDetailClassification] = useState(true);
-  const [detailIncident, setDetailIncident] = useState(false);
+  // Unpack filters from store
+  const {
+    search, filterStatus, showAdvanced, filterSupplier, filterClass,
+    filterType, filterDept, filterPic, filterTag, filterTerm,
+    detailClassification, detailIncident, pageSize, page
+  } = reportFilters;
 
-  const [pageSize, setPageSize] = useState(10);
-  const [page, setPage] = useState(1);
+  const setF = (updates: any) => setReportFilters(updates);
 
   const depts = masterData['dept'] || [];
   const suppliers = masterData['supplier'] || [];
@@ -60,7 +51,6 @@ export default function ReportTable() {
     try {
       const data = await getReports();
       setReports(data);
-      setPage(1);
     } catch (e: any) {
       toast(e.message || 'Lỗi tải dữ liệu', 'error');
     } finally {
@@ -138,16 +128,7 @@ export default function ReportTable() {
   const paginatedRows = displayRows.slice((page - 1) * pageSize, page * pageSize);
 
   function resetFilters() {
-    setSearch('');
-    setFilterStatus('');
-    setFilterSupplier('');
-    setFilterClass('');
-    setFilterType('');
-    setFilterDept('');
-    setFilterPic('');
-    setFilterTag('');
-    setFilterTerm('');
-    setPage(1);
+    resetReportFilters();
   }
 
   async function handleDelete(r: BBSCReport) {
@@ -188,7 +169,7 @@ export default function ReportTable() {
               className="outline-none text-sm w-full py-1 font-medium bg-transparent"
               placeholder="Tìm theo BBSC, Số lô, Tên hàng..."
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => { setF({ search: e.target.value, page: 1 }); }}
             />
           </div>
 
@@ -197,7 +178,7 @@ export default function ReportTable() {
             <select
               className="form-select !w-36 !h-9 !py-0 text-[13px] border-slate-300 !bg-white cursor-pointer"
               value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
+              onChange={e => setF({ filterStatus: e.target.value, page: 1 })}
             >
               <option value="">-- Trạng thái --</option>
               {statusOpts.map(s => <option key={s.key} value={s.value}>{s.value}</option>)}
@@ -208,7 +189,7 @@ export default function ReportTable() {
           {/* Advanced Filter Button */}
           <button 
             className={`btn btn-ghost !h-9 px-3 flex items-center justify-center border-slate-300 !bg-white hover:bg-slate-50 transition-colors flex-shrink-0 ${showAdvanced ? 'ring-2 ring-blue-100 border-blue-400' : ''}`}
-            onClick={() => setShowAdvanced(!showAdvanced)}
+            onClick={() => setF({ showAdvanced: !showAdvanced })}
             title="Bộ lọc nâng cao"
           >
             <Filter size={18} className={showAdvanced ? 'text-blue-600 fill-blue-50' : 'text-slate-600'} />
@@ -221,7 +202,7 @@ export default function ReportTable() {
                 type="checkbox" 
                 className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
                 checked={detailClassification}
-                onChange={e => setDetailClassification(e.target.checked)}
+                onChange={e => setF({ detailClassification: e.target.checked })}
               />
               <span className="text-[11px] font-medium text-slate-600 whitespace-nowrap">Chi tiết phân loại</span>
             </label>
@@ -230,7 +211,7 @@ export default function ReportTable() {
                 type="checkbox" 
                 className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
                 checked={detailIncident}
-                onChange={e => setDetailIncident(e.target.checked)}
+                onChange={e => setF({ detailIncident: e.target.checked })}
               />
               <span className="text-[11px] font-medium text-slate-600 whitespace-nowrap">Chi tiết sự cố</span>
             </label>
@@ -249,42 +230,42 @@ export default function ReportTable() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-1.5 p-2 bg-slate-50 rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200 mt-1">
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">Nhà cung cấp</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterSupplier} onChange={e => setF({ filterSupplier: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {suppliers.map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">Phân loại hàng</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterClass} onChange={e => setF({ filterClass: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {classes.map(c => <option key={c.key} value={c.key}>{c.value}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">Loại sự cố</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterType} onChange={e => setF({ filterType: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {types.map(t => <option key={t.key} value={t.key}>{t.value}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">Bộ phận</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterDept} onChange={e => setF({ filterDept: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {depts.map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">PIC / sub-PIC</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterPic} onChange={e => setFilterPic(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterPic} onChange={e => setF({ filterPic: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {pics.map(p => <option key={p.key} value={p.key}>{p.value}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 mb-0.5 block">Nhãn dán (Tag)</label>
-              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterTag} onChange={e => setFilterTag(e.target.value)}>
+              <select className="form-select !h-7 !py-0 !text-[11px] !bg-white" value={filterTag} onChange={e => setF({ filterTag: e.target.value, page: 1 })}>
                 <option value="">-- Tất cả --</option>
                 {tags.map(t => <option key={t.key} value={t.key}>{t.value}</option>)}
               </select>
@@ -296,7 +277,7 @@ export default function ReportTable() {
                   className="form-input !h-7 !text-[11px] !bg-white" 
                   placeholder="Từ khóa..." 
                   value={filterTerm}
-                  onChange={e => setFilterTerm(e.target.value)}
+                  onChange={e => setF({ filterTerm: e.target.value, page: 1 })}
                 />
                 <button className="btn btn-ghost !h-7 px-2 text-[10px]" onClick={resetFilters}>Xóa lọc</button>
               </div>
@@ -480,15 +461,15 @@ export default function ReportTable() {
             <select
               className="form-select w-16 py-1 px-2 border-slate-200"
               value={pageSize}
-              onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              onChange={e => setF({ pageSize: Number(e.target.value), page: 1 })}
             >
               {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             dòng/trang. Tổng: <strong>{displayRows.length}</strong> dòng
           </div>
           <div className="pagination">
-            <button className="pagination-btn" title="Đầu trang" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-            <button className="pagination-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+            <button className="pagination-btn" title="Đầu trang" disabled={page === 1} onClick={() => setF({ page: 1 })}>«</button>
+            <button className="pagination-btn" disabled={page === 1} onClick={() => setF({ page: page - 1 })}>‹</button>
             {(() => {
               let start = Math.max(1, page - 2);
               let end = Math.min(totalPages, start + 4);
@@ -501,14 +482,14 @@ export default function ReportTable() {
                 <button
                   key={p}
                   className={`pagination-btn ${p === page ? 'active' : ''}`}
-                  onClick={() => setPage(p)}
+                  onClick={() => setF({ page: p })}
                 >
                   {p}
                 </button>
               ));
             })()}
-            <button className="pagination-btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-            <button className="pagination-btn" title="Cuối trang" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</button>
+            <button className="pagination-btn" disabled={page === totalPages} onClick={() => setF({ page: page + 1 })}>›</button>
+            <button className="pagination-btn" title="Cuối trang" disabled={page === totalPages} onClick={() => setF({ page: totalPages })}>»</button>
           </div>
         </div>
       </div>
