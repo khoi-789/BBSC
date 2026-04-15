@@ -112,10 +112,14 @@ export interface AuditLog {
   action: AuditAction;
   performedBy: string;
   performedByName: string;
+  versionNo?: number;
+  source?: 'app' | 'gas_migration';
   changes?: {
     old?: Partial<BBSCReport>;
     new?: Partial<BBSCReport>;
     reason?: string;
+    snapshot?: object;
+    isDeleted?: string;
   };
   timestamp: Timestamp;
 }

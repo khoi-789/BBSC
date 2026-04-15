@@ -2,7 +2,7 @@
 import { useEffect, useState, use } from 'react';
 import { getReport } from '@/lib/services/reports';
 import Link from 'next/link';
-import { Pencil } from 'lucide-react';
+import { Clock, Pencil } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
@@ -52,6 +52,9 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex items-center gap-2 flex-wrap relative z-10">
           <StatusBadge status={report.header.status} />
+          <Link href={`/dashboard/${id}/audit`} className="btn btn-sm bg-white/20 text-white border-white/30 hover:bg-white/30 font-bold">
+            <Clock size={13} /> Lịch sử
+          </Link>
           {canEdit() && (
             <Link href={`/dashboard/${id}/edit`} className="btn btn-sm bg-white text-blue-700 border-white hover:bg-blue-50 font-bold shadow-sm">
               <Pencil size={13} /> Sửa
