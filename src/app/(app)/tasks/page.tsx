@@ -194,7 +194,7 @@ export default function TasksPage() {
           <div className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Đang tải dữ liệu tiến độ...</div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filtered.map(r => {
             const staleLevel = getStaleLevel(r);
             const lastTask = r.tasks?.[r.tasks.length - 1];
@@ -203,58 +203,55 @@ export default function TasksPage() {
             const isGap = isUrgentConfig || isUrgentTag;
 
             return (
-              <div key={r.id} className={`group relative bg-white rounded-2xl border-2 transition-all duration-300 p-4 flex flex-col gap-3 shadow-sm hover:shadow-xl ${isGap ? 'border-l-4 border-l-red-600 border-red-100' : staleLevel > 0 ? 'border-red-100' : 'border-slate-100 hover:border-blue-200'}`}>
+              <div key={r.id} className={`group relative bg-white rounded-2xl border-2 transition-all duration-300 p-2.5 flex flex-col gap-1.5 shadow-sm hover:shadow-xl ${isGap ? 'border-l-4 border-l-red-600 border-red-100' : staleLevel > 0 ? 'border-red-100' : 'border-slate-100 hover:border-blue-200'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Link href={`/dashboard/${r.id}`} className="text-blue-700 font-black text-xs hover:underline tracking-tight">
+                    <Link href={`/dashboard/${r.id}`} className="text-blue-700 font-black text-[11px] hover:underline tracking-tight">
                       {r.reportId}
                     </Link>
-                    {isGap && <span className="px-1.5 py-0.5 bg-red-600 text-white font-black text-[8px] rounded uppercase shadow-sm animate-pulse">GẤP</span>}
+                    {isGap && <span className="px-1 py-0.5 bg-red-600 text-white font-black text-[7px] rounded uppercase shadow-sm">GẤP</span>}
                   </div>
                   <div className="flex items-center gap-1">
                     <StatusBadge status={r.header.status} />
-                    <Link href={`/dashboard/${r.id}/edit`} className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors">
-                      <Pencil size={14} />
+                    <Link href={`/dashboard/${r.id}/edit`} className="p-1 text-slate-300 hover:text-blue-600 transition-colors">
+                      <Pencil size={11} />
                     </Link>
                   </div>
                 </div>
 
-                <div className="bg-slate-50/50 rounded-xl p-3 flex flex-col gap-1.5 border border-slate-100/50">
-                  <div className="text-[11px] leading-tight"><span className="text-slate-400 font-bold uppercase text-[9px]">Loại lỗi:</span> <span className="font-bold text-slate-700">{r.header.incidentType || '—'}</span></div>
-                  <div className="text-[11px] leading-tight"><span className="text-slate-400 font-bold uppercase text-[9px]">Sản phẩm:</span> <span className="font-bold text-slate-700 line-clamp-1">{r.items[0]?.itemName || '—'}</span></div>
-                  <div className="text-[11px] leading-tight grow"><span className="text-slate-400 font-bold uppercase text-[9px]">NCC:</span> <span className="font-bold text-slate-700">{r.header.supplier || '—'}</span></div>
-                  <div className="text-[11px] leading-tight"><span className="text-slate-400 font-bold uppercase text-[9px]">Người xử lý:</span> <span className="font-bold text-blue-600">{r.header.pic || '—'}</span></div>
+                <div className="bg-slate-50/50 rounded-lg p-2 flex flex-col gap-0.5 border border-slate-100/50">
+                  <div className="text-[10px] leading-tight flex gap-1.5"><span className="text-slate-400 font-bold uppercase text-[8px] w-12 shrink-0">Loại lỗi:</span> <span className="font-bold text-slate-700 truncate">{r.header.incidentType || '—'}</span></div>
+                  <div className="text-[10px] leading-tight flex gap-1.5"><span className="text-slate-400 font-bold uppercase text-[8px] w-12 shrink-0">Sản phẩm:</span> <span className="font-bold text-slate-700 truncate" title={r.items[0]?.itemName}>{r.items[0]?.itemName || '—'}</span></div>
+                  <div className="text-[10px] leading-tight flex gap-1.5"><span className="text-slate-400 font-bold uppercase text-[8px] w-12 shrink-0">NCC:</span> <span className="font-bold text-slate-700 truncate">{r.header.supplier || '—'}</span></div>
+                  <div className="text-[10px] leading-tight flex gap-1.5"><span className="text-slate-400 font-bold uppercase text-[8px] w-12 shrink-0">PIC:</span> <span className="font-bold text-blue-600">{r.header.pic || '—'}</span></div>
                 </div>
 
                 {staleLevel > 0 && (
-                  <div className="flex items-center gap-2 p-2 bg-red-50 rounded-xl border border-red-100 animate-pulse">
-                    <AlertTriangle size={14} className="text-red-600 shrink-0" />
-                    <span className="text-[10px] font-black text-red-700 uppercase leading-none">
-                      {staleLevel === 2 ? 'Đã hơn 1 tháng chưa cập nhật!' : 'Đã hơn 2 tuần chưa cập nhật!'}
+                  <div className="flex items-center gap-1.5 p-1 bg-red-50 rounded-lg border border-red-100 animate-pulse">
+                    <AlertTriangle size={10} className="text-red-600 shrink-0" />
+                    <span className="text-[8px] font-black text-red-700 uppercase leading-none">
+                      {staleLevel === 2 ? 'Quá 1 tháng!' : 'Quá 2 tuần!'}
                     </span>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1">
-                   <div className="text-[10px] text-slate-400 font-bold uppercase ml-1 italic">(Ghi chú mới nhất)</div>
-                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl italic line-clamp-2 min-h-[40px]">
-                      {lastTask ? lastTask.content : 'Chưa có ghi chú nào...'}
-                    </div>
+                <div className="text-[10px] text-slate-600 bg-slate-50 p-2 rounded-lg italic line-clamp-2 min-h-[30px] leading-snug">
+                  {lastTask ? lastTask.content : 'Chưa có ghi chú nào...'}
                 </div>
 
-                <div className="flex gap-2 mt-auto">
+                <div className="flex gap-1.5 mt-0.5">
                   <input
                     type="text"
-                    className="form-input !h-8 !text-[11px] bg-white border-slate-200 focus:border-blue-400"
-                    placeholder="Nhập tiến độ mới..."
+                    className="form-input !h-6 !text-[10px] bg-white border-slate-200 focus:border-blue-400 !py-0 !px-2 rounded-md"
+                    placeholder="Tiến độ..."
                     value={progressMap[r.id] || ''}
                     onChange={e => setProgressMap(p => ({ ...p, [r.id]: e.target.value }))}
                   />
                   <button
-                    className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-md shadow-blue-200 shrink-0"
+                    className="w-6 h-6 rounded-md bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all shadow-sm shrink-0"
                     onClick={() => handleUpdateProgress(r)}
                   >
-                    <TrendingUp size={14} />
+                    <TrendingUp size={11} />
                   </button>
                 </div>
               </div>
