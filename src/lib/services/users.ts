@@ -26,3 +26,13 @@ export async function createUserProfile(profile: UserProfile): Promise<void> {
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
   await updateDoc(doc(db, COL, uid), { ...data, updatedAt: Timestamp.now() });
 }
+
+// Returns active users who have isPic=true, sorted by displayName.
+// Used for PIC / sub-PIC dropdowns in the report form.
+export async function getPicUsers(): Promise<UserProfile[]> {
+  const snap = await getDocs(
+    query(collection(db, COL), where('isPic', '==', true), where('isActive', '==', true))
+  );
+  const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+  return users.sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi'));
+}

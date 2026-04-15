@@ -7,9 +7,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { useAppStore } from '@/stores/appStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { createReport, updateReport } from '@/lib/services/reports';
-import { BBSCReport, ReportItem, ReportStatus } from '@/types';
+import { BBSCReport, ReportItem, ReportStatus, UserProfile } from '@/types';
 import { PlusCircle, Trash2, Save, Send } from 'lucide-react';
 import { ALL_STATUSES } from '@/components/ui/StatusBadge';
+import { getPicUsers } from '@/lib/services/users';
 
 interface FormValues {
   header: {
@@ -48,10 +49,15 @@ export default function ReportForm({ existing }: ReportFormProps) {
   const { masterData } = useAppStore();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [picUsers, setPicUsers] = useState<UserProfile[]>([]);
+
+  // Fetch PIC users once on mount
+  useEffect(() => {
+    getPicUsers().then(setPicUsers);
+  }, []);
 
   const suppliers   = (masterData['supplier']      || []).filter(i => i.isActive);
   const depts       = (masterData['dept']          || []).filter(i => i.isActive);
-  const pics        = (masterData['pic']            || []).filter(i => i.isActive);
   const types       = (masterData['incident_type'] || []).filter(i => i.isActive);
   const tags        = (masterData['tag']            || []).filter(i => i.isActive);
   const units       = (masterData['unit']          || []).filter(i => i.isActive);
@@ -111,6 +117,7 @@ export default function ReportForm({ existing }: ReportFormProps) {
 
   const watchedSupplier = useWatch({ control, name: 'header.supplier' });
   const watchedDate = useWatch({ control, name: 'header.createdDate' });
+  const watchedPic = useWatch({ control, name: 'header.pic' });
 
   function formatDate(d: string) {
     if (!d) return '';
@@ -227,15 +234,26 @@ export default function ReportForm({ existing }: ReportFormProps) {
             <label className="form-label">PIC {isMandatory('pic') && <span className="required">*</span>}</label>
             <select id="f-pic" className="form-select" disabled={isReadonly('pic')} {...register('header.pic', { required: isMandatory('pic') })}>
               <option value="">— Chọn —</option>
-              {pics.map(p => <option key={p.key} value={p.key}>{p.value}</option>)}
+              {picUsers.map(u => (
+                <option key={u.uid} value={u.linkedPic || u.displayName}>
+                  {u.displayName}{u.department ? ` (${u.department})` : ''}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
             <label className="form-label">sub-PIC {isMandatory('subPic') && <span className="required">*</span>}</label>
             <select id="f-sub-pic" className="form-select" disabled={isReadonly('subPic')} {...register('header.subPic', { required: isMandatory('subPic') })}>
-              <option value="">— Chọn —</option>
-              {pics.map(p => <option key={p.key} value={p.key}>{p.value}</option>)}
+              <option value="">(Không có)</option>
+              {picUsers
+                .filter(u => (u.linkedPic || u.displayName) !== watchedPic)
+                .map(u => (
+                  <option key={u.uid} value={u.linkedPic || u.displayName}>
+                    {u.displayName}{u.department ? ` (${u.department})` : ''}
+                  </option>
+                ))
+              }
             </select>
           </div>
 
