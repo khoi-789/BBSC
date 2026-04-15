@@ -620,13 +620,3 @@ export default function MigrationPage() {
     </div>
   );
 }
-
-function normalizeStatus(s: string): string {
-  const upper = (s || '').trim().toUpperCase();
-  const map: Record<string, string> = {
-    'KHỞI TẠO': 'Khởi tạo', 'ĐANG XỬ LÝ': 'Đang xử lý',
-    'HOÀN TẤT': 'Hoàn tất', 'HỦY': 'Hủy',
-    'CHỜ HẾT INV': 'Chờ hết INV', 'CHỜ XÁC NHẬN': 'Chờ xác nhận',
-  };
-  return map[upper] || (s || '').trim();
-}
