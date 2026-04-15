@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -388,6 +388,9 @@ export default function ReportTable() {
                       <td className="whitespace-nowrap sticky-right-0">
                         {idx === 0 ? (
                           <div className="flex items-center gap-1">
+                            <Link href={`/dashboard/${r.id}/audit`} className="btn btn-icon btn-ghost btn-sm text-blue-600 hover:bg-blue-50" title="Lịch sử">
+                              <History size={13} />
+                            </Link>
                             {canEdit(r) && (
                               <Link href={`/dashboard/${r.id}/edit`} className="btn btn-icon btn-ghost btn-sm" title="Sửa">
                                 <Pencil size={13} />
@@ -445,6 +448,9 @@ export default function ReportTable() {
                       <td className="whitespace-nowrap sticky-right-1"><StatusBadge status={r.header.status} /></td>
                       <td className="whitespace-nowrap sticky-right-0">
                         <div className="flex items-center gap-1">
+                          <Link href={`/dashboard/${r.id}/audit`} className="btn btn-icon btn-ghost btn-sm text-blue-600 hover:bg-blue-50" title="Lịch sử">
+                            <History size={13} />
+                          </Link>
                           {canEdit(r) && (
                             <Link href={`/dashboard/${r.id}/edit`} className="btn btn-icon btn-ghost btn-sm" title="Sửa">
                               <Pencil size={13} />

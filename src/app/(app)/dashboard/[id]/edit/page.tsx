@@ -3,6 +3,8 @@ import { useEffect, useState, use } from 'react';
 import ReportForm from '@/components/reports/ReportForm';
 import { getReport } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
+import Link from 'next/link';
+import { History } from 'lucide-react';
 
 export default function EditReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -21,12 +23,20 @@ export default function EditReportPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="card-header relative overflow-hidden">
+      <div className="card-header relative overflow-hidden flex items-start justify-between">
         <div className="card-header-icon">
           <img src="/img/dashboard-bg.png" alt="" />
         </div>
-        <h1>CHỈNH SỬA PHIẾU BBSC</h1>
-        <p>Cập nhật thông tin chi tiết cho phiếu {report.reportId}</p>
+        <div className="relative z-10">
+          <h1>CHỈNH SỬA PHIẾU BBSC</h1>
+          <p>Cập nhật thông tin chi tiết cho phiếu {report.reportId}</p>
+        </div>
+        <Link
+          href={`/dashboard/${id}/audit`}
+          className="relative z-10 btn btn-sm bg-white/20 text-white border-white/30 hover:bg-white/30 flex items-center gap-2 shrink-0"
+        >
+          <History size={14} /> Lịch sử
+        </Link>
       </div>
       <ReportForm existing={report} />
     </div>
