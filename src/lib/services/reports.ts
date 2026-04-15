@@ -1,5 +1,5 @@
 import {
-  collection, doc, query, where, orderBy, limit,
+  collection, doc, query, where, orderBy,
   getDocs, getDoc, addDoc, updateDoc, Timestamp, runTransaction,
   startAfter, QueryDocumentSnapshot
 } from 'firebase/firestore';
@@ -103,49 +103,48 @@ export async function updateReport(
 ): Promise<void> {
   const docRef = doc(db, COL, id);
 
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(docRef);
-    if (!snap.exists()) throw new Error('Báo cáo không tồn tại.');
+  // Read current state first (outside transaction for audit log)
+  const currentSnap = await getDoc(docRef);
+  if (!currentSnap.exists()) throw new Error('Báo cáo không tồn tại.');
+  const old = currentSnap.data() as BBSCReport;
 
-    const old = snap.data() as BBSCReport;
-    const now = Timestamp.now();
-    let updatedReportId = old.reportId;
+  const now = Timestamp.now();
+  let updatedReportId = old.reportId;
 
-    // Check if createdDate changed, and if so, re-verify ID
-    if (data.header?.createdDate && data.header.createdDate !== old.header.createdDate) {
-      const oldYear = format(new Date(old.header.createdDate), 'yyyy');
-      const newYear = format(new Date(data.header.createdDate), 'yyyy');
-      const mm      = format(new Date(data.header.createdDate), 'MM');
-      const yy      = format(new Date(data.header.createdDate), 'yy');
+  // Check if createdDate changed, and if so, re-verify ID
+  if (data.header?.createdDate && data.header.createdDate !== old.header.createdDate) {
+    const oldYear = format(new Date(old.header.createdDate), 'yyyy');
+    const newYear = format(new Date(data.header.createdDate), 'yyyy');
+    const mm      = format(new Date(data.header.createdDate), 'MM');
+    const yy      = format(new Date(data.header.createdDate), 'yy');
 
-      if (oldYear !== newYear) {
-        // Different year -> Get a new seq in the new year
-        updatedReportId = await generateReportNo(data.header.createdDate);
-      } else {
-        // Same year -> Just update mmyy, keep xxxx
-        const { seq } = parseYearAndSeq(old.reportId);
-        const xxxx = String(seq).padStart(4, '0');
-        updatedReportId = `BBSC-${xxxx}-${mm}${yy}`;
-      }
+    if (oldYear !== newYear) {
+      updatedReportId = await generateReportNo(data.header.createdDate);
+    } else {
+      const { seq } = parseYearAndSeq(old.reportId);
+      const xxxx = String(seq).padStart(4, '0');
+      updatedReportId = `BBSC-${xxxx}-${mm}${yy}`;
     }
+  }
 
-    tx.update(docRef, {
-      ...data,
-      reportId: updatedReportId,
-      updatedAt: now,
-      updatedBy: uid,
-      updatedByName: userName,
-      reasonForChange: reason || '',
-    });
+  // Update the document (simple updateDoc, no transaction needed)
+  await updateDoc(docRef, {
+    ...data,
+    reportId: updatedReportId,
+    updatedAt: now,
+    updatedBy: uid,
+    updatedByName: userName,
+    reasonForChange: reason || '',
+  });
 
-    await writeAuditLog({
-      reportId: id,
-      reportNo: old.reportId,
-      action: old.header?.status !== data.header?.status ? 'STATUS_CHANGED' : 'UPDATED',
-      performedBy: uid,
-      performedByName: userName,
-      changes: { old, new: data, reason },
-    });
+  // Write audit log AFTER the update (non-blocking, won't affect the update)
+  await writeAuditLog({
+    reportId: id,
+    reportNo: old.reportId,
+    action: old.header?.status !== data.header?.status ? 'STATUS_CHANGED' : 'UPDATED',
+    performedBy: uid,
+    performedByName: userName,
+    changes: { old, new: data, reason },
   });
 }
 

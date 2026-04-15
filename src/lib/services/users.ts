@@ -29,10 +29,14 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
 
 // Returns active users who have isPic=true, sorted by displayName.
 // Used for PIC / sub-PIC dropdowns in the report form.
+// NOTE: Only uses single where() to avoid Firestore composite index requirement.
+// isActive is filtered client-side.
 export async function getPicUsers(): Promise<UserProfile[]> {
   const snap = await getDocs(
-    query(collection(db, COL), where('isPic', '==', true), where('isActive', '==', true))
+    query(collection(db, COL), where('isPic', '==', true))
   );
-  const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+  const users = snap.docs
+    .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+    .filter(u => u.isActive !== false); // filter isActive client-side
   return users.sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi'));
 }
