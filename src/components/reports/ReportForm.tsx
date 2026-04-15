@@ -73,12 +73,16 @@ export default function ReportForm({ existing }: ReportFormProps) {
         investigation: existing.header.investigation || '',
         immediateAction: existing.header.immediateAction || '',
       } as any,
-      items: (existing.items || []).map(i => ({
-        ...i,
-        lpn: (i as any).lpn || '',
-        asn: (i as any).asn || '',
-        detailedDescription: (i as any).detailedDescription || (i as any).issueType || '',
-      })),
+      items: (existing.items || []).map(i => {
+        // Normalize: strip old `issueType` (it's now `detailedDescription` in the form)
+        const { issueType: _drop, ...rest } = i as any;
+        return {
+          ...rest,
+          lpn: (i as any).lpn || '',
+          asn: (i as any).asn || '',
+          detailedDescription: (i as any).detailedDescription || (i as any).issueType || '',
+        };
+      }),
     } : {
       header: {
         createdDate: new Date().toISOString().slice(0, 10),
@@ -148,7 +152,19 @@ export default function ReportForm({ existing }: ReportFormProps) {
     setSubmitting(true);
     try {
       const finalStatus = status || data.header.status;
-      const payload = { ...data, header: { ...data.header, status: finalStatus } };
+
+      // Normalize items: map detailedDescription -> issueType (canonical Firestore field)
+      // This ensures audit diff doesn't show false changes between old issueType and new detailedDescription
+      const normalizedItems = data.items.map(({ detailedDescription, ...rest }: any) => ({
+        ...rest,
+        issueType: detailedDescription || rest.issueType || '',
+      }));
+
+      const payload = {
+        ...data,
+        header: { ...data.header, status: finalStatus },
+        items: normalizedItems,
+      };
 
       if (existing) {
         await updateReport(existing.id, payload, profile.uid, profile.displayName, 'Cập nhật qua form');
