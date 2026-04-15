@@ -30,8 +30,13 @@ export default function TasksPage() {
   const [searchProduct, setSearchProduct] = useState('');
   const [onlyUrgent, setOnlyUrgent] = useState(false);
 
+  const [picUsers, setPicUsers] = useState<any[]>([]);
+
   useEffect(() => {
     loadData();
+    // Load PIC users list for the filter
+    const { getPicUsers } = require('@/lib/services/users');
+    getPicUsers().then(setPicUsers);
   }, []);
 
   async function loadData() {
@@ -62,9 +67,33 @@ export default function TasksPage() {
       .map(t => t.value)
   ), [masterData]);
 
+  // Determine effective filter options for PIC based on role
+  const picOptions = useMemo(() => {
+    if (profile?.role === 'Admin') {
+      return picUsers;
+    }
+    // Non-admins only see themselves if they are PICs
+    return picUsers.filter(u => u.linkedPic === profile?.linkedPic || u.displayName === profile?.displayName);
+  }, [picUsers, profile]);
+
+  // For non-admin, force filter to their own identity if they haven't selected anything else
+  // Note: the `filtered` logic already handles matching both pic and subPic
+  const effectiveFilterUser = useMemo(() => {
+    if (profile?.role === 'Admin') return filterUser;
+    
+    // For non-admin, if they haven't picked a specific user, default to their own identifier
+    // Alternatively, just matching their exact identifier always if they try to see others
+    // We'll enforce that they can only filter by themselves anyway since picOptions limits it.
+    if (filterUser) return filterUser;
+    
+    return profile?.linkedPic || profile?.displayName || '';
+  }, [filterUser, profile]);
+
+
   const filtered = useMemo(() => {
     return reports.filter(r => {
-      const matchUser = !filterUser || r.header.pic === filterUser || r.header.subPic === filterUser;
+      // Use effective filter user which enforces non-admin to only see their own
+      const matchUser = !effectiveFilterUser || r.header.pic === effectiveFilterUser || r.header.subPic === effectiveFilterUser;
       const matchType = !filterType || r.header.incidentType === filterType;
       const matchClass = !filterClass || r.header.classification === filterClass;
       const matchStatus = !filterStatus || r.header.status === filterStatus;
@@ -89,7 +118,7 @@ export default function TasksPage() {
       const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : 0;
       return aTime - bTime;
     });
-  }, [reports, filterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent, urgentTypes]);
+  }, [reports, effectiveFilterUser, filterType, filterClass, filterStatus, searchProduct, onlyUrgent, urgentTypes]);
 
   const urgentCount = reports.filter(r => r.header.tags === 'Gấp' || r.header.tags?.toLowerCase().includes('hold')).length;
 
@@ -144,11 +173,17 @@ export default function TasksPage() {
       {/* Filter Bar (Horizontal) */}
       <div className="card !p-3 flex flex-wrap items-center gap-4 shadow-sm border border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-30">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nhân viên PIC</label>
-          <select className="form-select !h-9 !py-1 !text-xs !w-40" value={filterUser} onChange={e => setFilterUser(e.target.value)}>
-            <option value="">-- Tất cả --</option>
-            {masterData['pic']?.map(p => <option key={p.key} value={p.key}>{p.value}</option>)}
-          </select>
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">PIC/sub-PIC</label>
+          {profile?.role === 'Admin' ? (
+            <select className="form-select !h-9 !py-1 !text-xs !w-40" value={filterUser} onChange={e => setFilterUser(e.target.value)}>
+              <option value="">-- Tất cả --</option>
+              {picOptions.map(p => <option key={p.uid} value={p.linkedPic || p.displayName}>{p.displayName}</option>)}
+            </select>
+          ) : (
+            <div className="form-select !h-9 !py-1 !text-xs !w-40 bg-slate-50 text-slate-500 flex items-center line-clamp-1 truncate select-none border border-slate-200 rounded-lg">
+              {profile?.displayName}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Loại sự cố</label>

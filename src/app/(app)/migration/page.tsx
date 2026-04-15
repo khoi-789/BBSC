@@ -440,10 +440,13 @@ export default function MigrationPage() {
       {/* STEP: UPLOAD */}
       {step === 'upload' && (
         <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-          <h2 className="text-xl font-black text-slate-700 mb-2">Bước 1: Upload file CSV từ GAS</h2>
-          <p className="text-slate-400 text-sm mb-6">
+          <p className="text-slate-400 text-sm mb-2">
             File cần có các cột: <code className="bg-slate-100 px-1 rounded text-xs">UUID, INCIDENT_NO, DATE, STATUS, IS_DELETED, LAST_UPDATED, DATA_PAYLOAD</code>
           </p>
+          <div className="flex items-center gap-2 mb-6 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg w-fit border border-amber-100">
+            <AlertTriangle size={14} />
+            <span className="text-xs font-bold">Lưu ý: Chỉ sử dụng định dạng CSV UTF-8 để không bị lỗi font tiếng Việt.</span>
+          </div>
 
           <div {...getRootProps()} className={`border-2 border-dashed rounded-2xl p-16 text-center cursor-pointer transition-all ${isDragActive ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-slate-50 hover:border-orange-300 hover:bg-orange-50'}`}>
             <input {...getInputProps()} />
