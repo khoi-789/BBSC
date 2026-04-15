@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/config': 'Cấu hình hệ thống',
   '/config/users': 'Quản lý người dùng',
   '/knowledge': 'Tham khảo',
+  '/migration': 'Migration Dữ liệu (Admin)',
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

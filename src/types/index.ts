@@ -55,6 +55,8 @@ export interface ReportItem {
   unit: string;
   issueType: string;
   note?: string;
+  lpn?: string;          // License Plate Number (LPN)
+  asn?: string;          // Advanced Shipping Notice (ASN)
 }
 
 export interface ReportHeader {

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import {
   ClipboardList, CheckSquare, PlusCircle, Settings,
-  BookOpen, BarChart2, Building2, ShieldCheck, User, LogOut, ChevronDown
+  BookOpen, BarChart2, Building2, ShieldCheck, User, LogOut, ChevronDown, DatabaseZap
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -152,6 +152,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 >
                   <Building2 size={16} />
                   Quản lý người dùng
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/migration"
+                  className={`sidebar-nav-item ${pathname.startsWith('/migration') ? 'active' : ''} !text-orange-300`}
+                >
+                  <DatabaseZap size={16} />
+                  Migration DB
                 </Link>
               )}
             </>
