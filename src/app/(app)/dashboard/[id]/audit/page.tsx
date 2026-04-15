@@ -58,20 +58,32 @@ function getDiffFields(oldSnap: Record<string, unknown>, newSnap: Record<string,
   const oldFlat = flattenObj(oldSnap);
   const newFlat = flattenObj(newSnap);
 
-  const SKIP = ['system.', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'isDeleted', 'reasonForChange', 'tasks', 'attachments'];
+  // Internal/metadata fields to exclude from diff display
+  const SKIP = [
+    'createdAt', 'updatedAt', 'createdBy', 'updatedBy',
+    'createdByName', 'updatedByName',
+    'isDeleted', 'reasonForChange', 'tasks', 'attachments',
+    'reportId', 'id', 'system.',
+    // Firestore Timestamp fields inside header (if any)
+    'header.seconds', 'header.nanoseconds',
+  ];
 
+  // Only show keys that are in FIELD_LABELS (known displayable fields)
   const allKeys = new Set([...Object.keys(oldFlat), ...Object.keys(newFlat)]);
   allKeys.forEach(key => {
     if (SKIP.some(s => key.startsWith(s) || key === s)) return;
-    if (key === 'items') return; // Handled separately
+    if (key === 'items' || key.startsWith('items.')) return; // Handled separately
+    // Only show fields that have a human-readable label
+    if (!FIELD_LABELS[key]) return;
 
     const oldV = oldFlat[key];
     const newV = newFlat[key];
-    const changed = JSON.stringify(oldV) !== JSON.stringify(newV);
-    if (changed) {
+    const oldStr = String(oldV ?? '');
+    const newStr = String(newV ?? '');
+    if (oldStr !== newStr) {
       diffs.push({
         key,
-        label: FIELD_LABELS[key] || key,
+        label: FIELD_LABELS[key],
         oldVal: oldV,
         newVal: newV,
       });
@@ -255,24 +267,43 @@ export default function AuditPage({ params }: { params: Promise<{ id: string }> 
   const selectedLog = logs[selectedIdx];
   const prevLog = selectedIdx > 0 ? logs[selectedIdx - 1] : null;
 
-  // Extract snapshots for diffing
-  const getSnapshot = (log: AuditLog | null): Record<string, unknown> => {
-    if (!log) return {};
-    const snap = log.changes?.snapshot as Record<string, unknown>;
-    if (snap) return snap;
-    // App-generated log: compare old vs new within changes
-    return (log.changes?.new as Record<string, unknown>) || {};
+  // ── Snapshot helpers ──────────────────────────────────────────────────────
+  // For BBSC app-generated logs: changes.old = pre-update Firestore state
+  //                              changes.new = submitted form data (post-update)
+  // For GAS migration logs:       changes.snapshot = state at that moment
+  // Priority for OLD: changes.old > prevLog.changes.new|snapshot > {}
+  // Priority for NEW: changes.new > changes.snapshot > {}
+
+  const getChanges = (log: AuditLog) =>
+    (log.changes as Record<string, unknown>) || {};
+
+  const getNewSnap = (log: AuditLog): Record<string, unknown> => {
+    const c = getChanges(log);
+    if (c.new && typeof c.new === 'object') return c.new as Record<string, unknown>;
+    if (c.snapshot && typeof c.snapshot === 'object') return c.snapshot as Record<string, unknown>;
+    return {};
   };
 
-  const currentSnap = getSnapshot(selectedLog);
-  const previousSnap = prevLog ? getSnapshot(prevLog) : {};
+  const getOldSnap = (log: AuditLog, prev: AuditLog | null): Record<string, unknown> => {
+    const c = getChanges(log);
+    // Best case: changes.old has the true pre-update state
+    if (c.old && typeof c.old === 'object' && Object.keys(c.old as object).length > 0) {
+      return c.old as Record<string, unknown>;
+    }
+    // Fallback: use previous log's "new" snapshot (for GAS migration chaining)
+    if (prev) return getNewSnap(prev);
+    return {};
+  };
+
+  const oldSnap = selectedLog ? getOldSnap(selectedLog, prevLog) : {};
+  const newSnap = selectedLog ? getNewSnap(selectedLog) : {};
 
   const diffs = selectedLog?.action !== 'CREATED'
-    ? getDiffFields(previousSnap, currentSnap)
+    ? getDiffFields(oldSnap, newSnap)
     : [];
 
-  const currentItems = getItemsFromSnap(currentSnap);
-  const prevItems = prevLog ? getItemsFromSnap(getSnapshot(prevLog)) : [];
+  const currentItems = getItemsFromSnap(newSnap);
+  const prevItems    = getItemsFromSnap(oldSnap);
   const itemsChanged = JSON.stringify(currentItems) !== JSON.stringify(prevItems);
 
   const cfg = ACTION_CONFIG[selectedLog?.action || 'UPDATED'] || ACTION_CONFIG.UPDATED;
@@ -419,7 +450,7 @@ export default function AuditPage({ params }: { params: Promise<{ id: string }> 
                         ))}
 
                         {/* Items changed */}
-                        {itemsChanged && prevLog && (
+                        {itemsChanged && (
                           <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
                             <div className="px-4 py-2 bg-amber-100 text-xs font-bold text-amber-700 uppercase tracking-wide flex items-center justify-between">
                               <span>Danh sách hàng hóa</span>
