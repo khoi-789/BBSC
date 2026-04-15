@@ -64,7 +64,7 @@ export default function ReportForm({ existing }: ReportFormProps) {
   const classes     = (masterData['classification'] || []).filter(i => i.isActive);
   const statusOpts   = (masterData['status']        || []).filter(i => i.isActive);
 
-  const { register, control, handleSubmit, formState: { errors }, setValue } = useForm<FormValues>({
+  const { register, control, handleSubmit, formState: { errors, isDirty }, setValue } = useForm<FormValues>({
     defaultValues: existing ? {
       header: {
         ...existing.header,
@@ -139,10 +139,10 @@ export default function ReportForm({ existing }: ReportFormProps) {
       if (!inv || inv.startsWith('Hàng ')) {
         const supplierObj = suppliers.find(s => s.key === watchedSupplier);
         const supplierName = supplierObj ? supplierObj.value : watchedSupplier;
-        setValue('header.investigation', `Hàng ${supplierName} nhập ngày ${formatDate(watchedDate)}, trong quá trình ... phát hiện sự cố, mô tả chi tiết như bảng trên`);
+        setValue('header.investigation', `Hàng ${supplierName} nhập ngày ${formatDate(watchedDate)}, trong quá trình ... phát hiện sự cố, mô tả chi tiết như bảng trên`, { shouldDirty: false });
       }
       if (!act || act === 'Chuyển khu vực biệt trữ, thông báo đến hãng và bộ phận liên quan') {
-        setValue('header.immediateAction', `Chuyển khu vực biệt trữ, thông báo đến hãng và bộ phận liên quan`);
+        setValue('header.immediateAction', `Chuyển khu vực biệt trữ, thông báo đến hãng và bộ phận liên quan`, { shouldDirty: false });
       }
     }
   }, [watchedSupplier, watchedDate, suppliers, setValue, control]);
@@ -415,23 +415,40 @@ export default function ReportForm({ existing }: ReportFormProps) {
         <button type="button" onClick={() => router.back()} className="btn btn-danger btn-sm px-6 font-bold">
           Hủy
         </button>
-        <button
-          id="btn-save-draft"
-          type="button"
-          disabled={submitting}
-          onClick={handleSubmit(d => onSubmit(d, 'Khởi tạo'))}
-          className="btn btn-ghost border-blue-300 text-blue-700"
-        >
-          <Save size={15} /> Lưu nháp
-        </button>
-        <button
-          id="btn-submit-report"
-          type="submit"
-          disabled={submitting}
-          className="btn btn-primary"
-        >
-          <Send size={15} /> {submitting ? 'Đang lưu...' : existing ? 'Cập nhật' : 'Tạo phiếu'}
-        </button>
+
+        {/* For existing reports: only show save buttons when there are actual changes */}
+        {existing ? (
+          <>
+            <button
+              id="btn-save-draft"
+              type="button"
+              disabled={submitting || !isDirty}
+              title={!isDirty ? 'Chưa có thay đổi nào để lưu' : undefined}
+              onClick={handleSubmit(d => onSubmit(d, 'Khởi tạo'))}
+              className={`btn btn-ghost border-blue-300 text-blue-700 ${!isDirty ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <Save size={15} /> Lưu nháp
+            </button>
+            <button
+              id="btn-submit-report"
+              type="submit"
+              disabled={submitting || !isDirty}
+              title={!isDirty ? 'Chưa có thay đổi nào để cập nhật' : undefined}
+              className={`btn btn-primary ${!isDirty ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <Send size={15} /> {submitting ? 'Đang lưu...' : 'Cập nhật'}
+            </button>
+          </>
+        ) : (
+          <button
+            id="btn-submit-report"
+            type="submit"
+            disabled={submitting}
+            className="btn btn-primary"
+          >
+            <Send size={15} /> {submitting ? 'Đang lưu...' : 'Tạo phiếu'}
+          </button>
+        )}
       </div>
     </form>
   );

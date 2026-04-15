@@ -94,8 +94,20 @@ function getDiffFields(oldSnap: Record<string, unknown>, newSnap: Record<string,
 }
 
 function getItemsFromSnap(snap: Record<string, unknown>): ReportItem[] {
-  const items = snap.items as ReportItem[] || [];
-  return items;
+  return (snap.items as ReportItem[]) || [];
+}
+
+// Normalize an item for comparison: unify issueType/detailedDescription, sort keys, ignore id
+function normalizeItemForCompare(item: ReportItem): string {
+  const { id: _id, detailedDescription, ...rest } = item as any;
+  const normalized = {
+    ...rest,
+    issueType: rest.issueType || detailedDescription || '',
+  };
+  // Sort keys so JSON.stringify is order-insensitive
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(normalized).sort(([a], [b]) => a.localeCompare(b)))
+  );
 }
 
 function formatVal(v: unknown): string {
@@ -152,7 +164,7 @@ function ItemCompareModal({ oldItems, newItems, onClose }: { oldItems: ReportIte
               {oldItems.map((item, idx) => {
                 const matchNew = newItems.find(ni => ni.itemCode === item.itemCode);
                 const isRemoved = !matchNew;
-                const isChanged = matchNew && JSON.stringify(item) !== JSON.stringify(matchNew);
+                const isChanged = matchNew && normalizeItemForCompare(item) !== normalizeItemForCompare(matchNew);
                 return (
                   <div key={idx} className={`rounded-xl p-3 text-xs border ${isRemoved ? 'bg-red-50 border-red-200' : isChanged ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
                     <div className="flex items-center gap-2 mb-1">
@@ -184,7 +196,7 @@ function ItemCompareModal({ oldItems, newItems, onClose }: { oldItems: ReportIte
               {newItems.map((item, idx) => {
                 const matchOld = oldItems.find(oi => oi.itemCode === item.itemCode);
                 const isAdded = !matchOld;
-                const isChanged = matchOld && JSON.stringify(item) !== JSON.stringify(matchOld);
+                const isChanged = matchOld && normalizeItemForCompare(item) !== normalizeItemForCompare(matchOld);
                 return (
                   <div key={idx} className={`rounded-xl p-3 text-xs border ${isAdded ? 'bg-green-50 border-green-200' : isChanged ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
                     <div className="flex items-center gap-2 mb-1">
@@ -304,7 +316,11 @@ export default function AuditPage({ params }: { params: Promise<{ id: string }> 
 
   const currentItems = getItemsFromSnap(newSnap);
   const prevItems    = getItemsFromSnap(oldSnap);
-  const itemsChanged = JSON.stringify(currentItems) !== JSON.stringify(prevItems);
+  // Use normalized comparison to avoid false positives from field order/issueType-vs-detailedDescription
+  const itemsChanged = !(
+    currentItems.length === prevItems.length &&
+    currentItems.every((item, i) => normalizeItemForCompare(item) === normalizeItemForCompare(prevItems[i]))
+  );
 
   const cfg = ACTION_CONFIG[selectedLog?.action || 'UPDATED'] || ACTION_CONFIG.UPDATED;
 
