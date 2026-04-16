@@ -655,7 +655,7 @@ export default function ReportTable() {
             <button className="pagination-btn" disabled={page === totalPages} onClick={() => setF({ page: page + 1 })}>›</button>
             <button className="pagination-btn" title="Cuối trang" disabled={page === totalPages} onClick={() => setF({ page: totalPages })}>»</button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
