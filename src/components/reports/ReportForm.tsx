@@ -53,10 +53,17 @@ export default function ReportForm({ existing }: ReportFormProps) {
 
   // Fetch PIC users once on mount
   useEffect(() => {
-    getPicUsers().then(setPicUsers);
-  }, []);
+    getPicUsers().then(users => {
+      setPicUsers(users);
+      if (existing) {
+        // RHF async default value fix: re-apply values so <select> visually updates when options arrive
+        setValue('header.pic', existing.header.pic || '', { shouldDirty: false });
+        setValue('header.subPic', existing.header.subPic || '', { shouldDirty: false });
+      }
+    });
+  }, [existing, setValue]);
 
-  const suppliers   = (masterData['supplier']      || []).filter(i => i.isActive);
+  const suppliers   = (masterData['supplier']      || []).filter((i: any) => i.isActive);
   const depts       = (masterData['dept']          || []).filter(i => i.isActive);
   const types       = (masterData['incident_type'] || []).filter(i => i.isActive);
   const tags        = (masterData['tag']            || []).filter(i => i.isActive);
