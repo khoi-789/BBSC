@@ -29,19 +29,47 @@ export default function ReportTable() {
   const [reports, setReports] = useState<BBSCReport[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Manual Search States
+  const [appliedFilters, setAppliedFilters] = useState(reportFilters);
+  const [isDirty, setIsDirty] = useState(false);
+
   // Archive specific states
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [archiveLastVisible, setArchiveLastVisible] = useState<any>(null);
   const [hasMoreArchive, setHasMoreArchive] = useState(true);
 
-  // Unpack filters from store
+  // Unpack filters from store (These are our "Draft" filters)
   const {
     search, filterStatus, showAdvanced, filterSupplier, filterClass,
     filterType, filterDept, filterPic, filterTag, filterTerm,
     detailClassification, detailIncident, pageSize, page
   } = reportFilters;
 
+  // Track if any filter change happens to trigger the "Pulsing" button
+  useEffect(() => {
+    // Basic deep comparison of relevant query filters
+    const hasChanged = JSON.stringify(reportFilters) !== JSON.stringify(appliedFilters);
+    setIsDirty(hasChanged);
+  }, [reportFilters, appliedFilters]);
+
   const setF = (updates: any) => setReportFilters(updates);
+
+  // Function to actually "Apply" filters
+  const handleSearch = useCallback(async (isLoadMore = false) => {
+    setAppliedFilters(reportFilters);
+    setIsDirty(false);
+    
+    if (activeTab === 'archive') {
+      await loadArchive(isLoadMore);
+    }
+    // For 'active' tab, the useMemo for filteredReports will auto-update because it depends on appliedFilters
+  }, [reportFilters, activeTab]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const depts = masterData['dept'] || [];
   const suppliers = masterData['supplier'] || [];
@@ -97,16 +125,16 @@ export default function ReportTable() {
       const unsub = loadActive();
       return () => unsub();
     } else {
-      loadArchive(false);
+      // Initial load or tab switch
+      handleSearch(false);
     }
-  }, [activeTab, filterDept, filterSupplier, pageSize]); // Add dependencies for archive mode refetching
+  }, [activeTab]); // Only fetch on tab switch or initialization
 
   const filteredReports = useMemo(() => {
     let d = [...reports];
     
-    // Custom Sort: Year (yy) DESC, Sequence (xxxx) DESC
+    // Sort logic remains independent...
     d.sort((a, b) => {
-      // BBSC-xxxx-mmyy
       const parseId = (id: string) => {
         const parts = id.split('-');
         const seq = parseInt(parts[1] || '0', 10);
@@ -122,15 +150,22 @@ export default function ReportTable() {
       return pb.seq - pa.seq;
     });
 
-    if (filterStatus) d = d.filter(r => r.header.status === filterStatus);
-    if (filterSupplier) d = d.filter(r => r.header.supplier === filterSupplier);
-    if (filterDept) d = d.filter(r => r.header.dept === filterDept);
-    if (filterPic) d = d.filter(r => r.header.pic === filterPic || r.header.subPic === filterPic);
-    if (filterType) d = d.filter(r => r.header.incidentType === filterType);
-    if (filterTag) d = d.filter(r => r.header.tags === filterTag);
+    // Use appliedFilters instead of drect reportFilters for the Actual List
+    const { 
+      filterStatus: fStat, filterSupplier: fSup, filterDept: fDept, 
+      filterPic: fPic, filterType: fTyp, filterTag: fTag, 
+      filterClass: fCls, search: fSrc, filterTerm: fTrm 
+    } = appliedFilters;
+
+    if (fStat) d = d.filter(r => r.header.status === fStat);
+    if (fSup) d = d.filter(r => r.header.supplier === fSup);
+    if (fDept) d = d.filter(r => r.header.dept === fDept);
+    if (fPic) d = d.filter(r => r.header.pic === fPic || r.header.subPic === fPic);
+    if (fTyp) d = d.filter(r => r.header.incidentType === fTyp);
+    if (fTag) d = d.filter(r => r.header.tags === fTag);
     
-    if (search || filterTerm) {
-      const s = (search || filterTerm).toLowerCase();
+    if (fSrc || fTrm) {
+      const s = (fSrc || fTrm).toLowerCase();
       d = d.filter(r =>
         r.reportId.toLowerCase().includes(s) ||
         r.header.supplier?.toLowerCase().includes(s) ||
@@ -145,12 +180,12 @@ export default function ReportTable() {
       );
     }
     
-    if (filterClass) {
-      d = d.filter(r => r.items.some(i => i.issueType === filterClass));
+    if (fCls) {
+      d = d.filter(r => r.items.some(i => i.issueType === fCls));
     }
 
     return d;
-  }, [reports, filterStatus, filterSupplier, filterDept, filterPic, filterType, filterTag, filterClass, search, filterTerm]);
+  }, [reports, appliedFilters]);
 
   // Transform into display rows based on mode
   const displayRows = useMemo(() => {
@@ -242,19 +277,28 @@ export default function ReportTable() {
       {/* Filters Section (Clean Style) */}
       <div className="card !p-1.5 flex flex-col gap-1.5">
         <div className="flex flex-nowrap items-center gap-2">
-          {/* Search Box - Flex-1 to take remaining space */}
-          <div className={`flex items-center bg-white rounded-md border border-slate-300 h-9 px-3 transition-all flex-1 min-w-0 ${activeTab === 'archive' ? 'opacity-50 pointer-events-none bg-slate-50' : 'focus-within:border-blue-500'}`}>
+          {/* Search Box */}
+          <div className={`flex items-center bg-white rounded-md border border-slate-300 h-9 px-3 transition-all flex-1 min-w-0 ${activeTab === 'archive' && search === '' ? 'border-amber-200' : 'focus-within:border-blue-500'}`}>
             <Search size={16} className="text-slate-400 mr-2 flex-shrink-0" />
             <input
               className="outline-none text-sm w-full py-1 font-medium bg-transparent"
-              placeholder={activeTab === 'archive' ? "Lưu trữ chỉ lọc theo danh mục bên cạnh..." : "Tìm theo BBSC, Số lô, Tên hàng..."}
+              placeholder={activeTab === 'archive' ? "Gõ BBSC, Số lô... rồi nhấn ENTER" : "Gõ tìm kiếm rồi nhấn ENTER..."}
               value={search}
-              onChange={e => { setF({ search: e.target.value, page: 1 }); }}
-              disabled={activeTab === 'archive'}
+              onChange={e => setF({ search: e.target.value, page: 1 })}
+              onKeyDown={handleKeyDown}
             />
           </div>
 
-          {/* Status Dropdown - Fixed width */}
+          {/* Search Button (Magnifying Glass) */}
+          <button 
+            className={`btn btn-primary !h-9 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/20' : 'opacity-70'}`}
+            onClick={() => handleSearch()}
+            title="Thực hiện tìm kiếm (Enter)"
+          >
+            <Search size={18} strokeWidth={2.5} />
+          </button>
+
+          {/* Status Dropdown */}
           <div className="flex-shrink-0">
             <select
               className="form-select !w-36 !h-9 !py-0 text-[13px] border-slate-300 !bg-white cursor-pointer"
