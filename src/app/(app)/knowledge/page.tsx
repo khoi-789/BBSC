@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { getReports } from '@/lib/services/reports';
+import { getReportsLegacy } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
 import { Search, BookOpen, Calendar, ArrowRight, Eye, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -25,7 +25,7 @@ export default function KnowledgeBase() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await getReports();
+        const data = await getReportsLegacy();
         // Only show valid reports that are not deleted
         setReports(data.filter(r => !r.isDeleted));
       } catch (error) {
