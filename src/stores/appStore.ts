@@ -14,6 +14,9 @@ interface ReportFilters {
   filterPic: string;
   filterTag: string;
   filterTerm: string;
+  filterItemCode: string;
+  filterLotNumber: string;
+  filterItemName: string;
   detailClassification: boolean;
   detailIncident: boolean;
   pageSize: number;
@@ -40,9 +43,12 @@ const DEFAULT_FILTERS: ReportFilters = {
   filterPic: '',
   filterTag: '',
   filterTerm: '',
+  filterItemCode: '',
+  filterLotNumber: '',
+  filterItemName: '',
   detailClassification: true,
   detailIncident: false,
-  pageSize: 10,
+  pageSize: 25,
   page: 1,
 };
 

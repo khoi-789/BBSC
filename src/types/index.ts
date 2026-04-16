@@ -100,6 +100,10 @@ export interface BBSCReport {
   updatedBy?: string;
   updatedByName?: string;
   reasonForChange?: string;
+  // Index Fields for server-side search
+  itemCodes?: string[];
+  lotNumbers?: string[];
+  itemNames?: string[];
 }
 
 // ---- Audit Log ----

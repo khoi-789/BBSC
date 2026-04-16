@@ -62,15 +62,20 @@ export function subscribeToActiveReports(callback: (reports: BBSCReport[]) => vo
   });
 }
 
-// ---- READ: Get Archive Reports (Paginated) ----
-export async function getArchiveReports(
+// ---- READ: Get Reports (Unified Paginated Fetcher) ----
+export async function getReports(
   filters: { 
     dept?: string; 
     supplier?: string;
     class?: string;
     type?: string;
     tag?: string;
-    status?: string;
+    status?: string | string[];
+    // Smart Search
+    reportId?: string;
+    itemCode?: string;
+    lotNumber?: string;
+    itemName?: string;
   }, 
   lastVisible?: any, 
   pageSize = 25
@@ -84,11 +89,29 @@ export async function getArchiveReports(
       where('isDeleted', '==', false)
     ];
 
-    // Status filter
+    // 1. Priority 1: Exact Report ID Search (1 Read)
+    if (filters.reportId && filters.reportId.length > 5) {
+      const q = query(collection(db, COL), where('reportId', '==', filters.reportId.trim()));
+      const snap = await getDocs(q);
+      return { data: snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport)), lastVisible: null };
+    }
+
+    // 2. Priority 2: Smart Search via Array-Contains (Fast & Cheap)
+    if (filters.itemCode) {
+      queryConstraints.push(where('itemCodes', 'array-contains', filters.itemCode));
+    } else if (filters.lotNumber) {
+      queryConstraints.push(where('lotNumbers', 'array-contains', filters.lotNumber));
+    } else if (filters.itemName) {
+      queryConstraints.push(where('itemNames', 'array-contains', filters.itemName));
+    }
+
+    // 3. Regular Filters
     if (filters.status) {
-      queryConstraints.push(where('header.status', '==', filters.status));
-    } else {
-      queryConstraints.push(where('header.status', 'in', ['Hoàn tất', 'Hủy']));
+      if (Array.isArray(filters.status)) {
+        queryConstraints.push(where('header.status', 'in', filters.status));
+      } else {
+        queryConstraints.push(where('header.status', '==', filters.status));
+      }
     }
 
     if (filters.dept) queryConstraints.push(where('header.dept', '==', filters.dept));
@@ -97,43 +120,53 @@ export async function getArchiveReports(
     if (filters.type) queryConstraints.push(where('header.incidentType', '==', filters.type));
     if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
 
-    queryConstraints.push(orderBy('header.status', 'asc')); // Needed for the 'in' or '==' status query to work with ordering
+    // Order and Page
+    if (filters.status) {
+      queryConstraints.push(orderBy('header.status', 'asc')); 
+    }
     queryConstraints.push(orderBy('createdAt', 'desc'));
+    
+    if (lastVisible) {
+      queryConstraints.push(startAfter(lastVisible));
+    }
     queryConstraints.push(limit(pageSize));
 
-    let q = query(collection(db, COL), ...queryConstraints);
-
-    if (lastVisible) {
-      q = query(q, startAfter(lastVisible));
-    }
-
+    const q = query(collection(db, COL), ...queryConstraints);
     const snap = await getDocs(q);
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport));
+    
     return {
-      data,
-      lastVisible: snap.docs[snap.docs.length - 1] || null
+      data: snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BBSCReport)),
+      lastVisible: snap.docs[snap.docs.length - 1]
     };
   } catch (err: any) {
-    // If composite index is missing, Firebase returns an error with a creation URL
-    if (err.message && err.message.includes('requires an index.')) {
-      const urlMatch = err.message.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
-      return { data: [], lastVisible: null, indexError: urlMatch ? urlMatch[0] : err.message };
+    console.error('getReports Error:', err);
+    if (err.message?.includes('index')) {
+      return { data: [], lastVisible: null, indexError: err.message };
     }
     throw err;
   }
 }
 
 // Legacy, keeping it safe for compatibility if needed elsewhere briefly
-export async function getReports(): Promise<BBSCReport[]> {
+export async function getReportsLegacy(): Promise<BBSCReport[]> {
   const q = query(
     collection(db, COL),
     where('isDeleted', '==', false),
     orderBy('createdAt', 'desc'),
-    limit(500) // Safety net
+    limit(500)
   );
-
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport));
+}
+
+// ---- INTERNAL: Prepare Search Indices ----
+function prepareSearchIndices(report: Partial<BBSCReport>) {
+  if (!report.items) return {};
+  return {
+    itemCodes: Array.from(new Set(report.items.map(i => i.itemCode).filter(Boolean))),
+    lotNumbers: Array.from(new Set(report.items.map(i => i.batchNo).filter(Boolean))),
+    itemNames: Array.from(new Set(report.items.map(i => i.itemName).filter(Boolean)))
+  };
 }
 
 // ---- READ: Single report ----
@@ -151,9 +184,11 @@ export async function createReport(
 ): Promise<string> {
   const reportId = await generateReportNo(data.header.createdDate);
   const now = Timestamp.now();
+  const searchIndices = prepareSearchIndices(data);
 
   const payload: Omit<BBSCReport, 'id'> = {
     ...data,
+    ...searchIndices,
     reportId,
     isDeleted: false,
     createdBy: uid,
@@ -210,9 +245,12 @@ export async function updateReport(
     }
   }
 
+  const searchIndices = data.items ? prepareSearchIndices(data) : {};
+
   // Update the document (simple updateDoc, no transaction needed)
   await updateDoc(docRef, {
     ...data,
+    ...searchIndices,
     reportId: updatedReportId,
     updatedAt: now,
     updatedBy: uid,
