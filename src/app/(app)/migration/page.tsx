@@ -57,6 +57,27 @@ function normalizeStatus(s: string): string {
   return STATUS_MAP[upper] || (s || '').trim();
 }
 
+function cleanUnit(uom: string): string {
+  if (!uom) return '';
+  const str = String(uom).trim().toUpperCase();
+  
+  if (['HOP', 'HÕP', 'HỌP', 'HỘP', 'HỢP'].includes(str)) return 'HỘP';
+  if (['CAI', 'CÁI'].includes(str)) return 'CÁI';
+  if (['CHAI', 'CHÁI'].includes(str)) return 'CHAI';
+  if (['LO', 'LỌ'].includes(str)) return 'LỌ';
+  if (['ONG', 'ÓNG', 'ỐNG', 'ÕNG'].includes(str)) return 'ỐNG';
+  if (['THUNG', 'THÚNG', 'THÙNG'].includes(str)) return 'THÙNG';
+  if (['VI', 'VỊ', 'VĨ', 'VỈ'].includes(str)) return 'VỈ';
+  if (['VIEN', 'VIÊN'].includes(str)) return 'VIÊN';
+  if (['GOI', 'GÓI'].includes(str)) return 'GÓI';
+  if (['TUYP', 'TUÝP'].includes(str)) return 'TUÝP';
+  if (['PALLET'].includes(str)) return 'PALLET';
+  if (['LON'].includes(str)) return 'LON';
+  if (['HOP LON', 'HỘP LỚN'].includes(str)) return 'HỘP LỚN';
+
+  return str;
+}
+
 function msToTimestamp(ms: number | string): Timestamp {
   const n = typeof ms === 'string' ? parseInt(ms, 10) : ms;
   return Timestamp.fromMillis(isNaN(n) ? Date.now() : n);
@@ -74,7 +95,7 @@ function transformRow(row: GasRow): object | null {
       batchNo: String(item.batch_no || '').trim(),
       expiryDate: String(item.expired_date || '').trim(),
       quantity: Number(item.quantity) || 0,
-      unit: String(item.uom || '').trim(),
+      unit: cleanUnit(String(item.uom || '')),
       issueType: String(item.problem_detail || '').trim(),
       detailedDescription: String(item.problem_detail || '').trim(),
       note: String(item.item_action || '').trim(),
@@ -254,7 +275,7 @@ export default function MigrationPage() {
 
             const rawItems = payload.items || [];
             rawItems.forEach((it: any) => {
-              if (it.uom?.trim()) csvUnits.add(it.uom.trim());
+              if (it.uom?.trim()) csvUnits.add(cleanUnit(it.uom));
             });
           } catch { /* skip */ }
 
