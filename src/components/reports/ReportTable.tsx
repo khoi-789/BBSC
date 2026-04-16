@@ -133,6 +133,21 @@ export default function ReportTable() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  const tags = masterData['tag'] || [];
+  
+  const canDelete = (r: BBSCReport) => {
+    if (!profile) return false;
+    if (profile.role === 'Admin') return true;
+    return r.createdBy === profile.uid && r.header.status === 'Khởi tạo';
+  };
+
+  const canEdit = (r: BBSCReport) => {
+    if (!profile) return false;
+    if (profile.role === 'Admin' || profile.role === 'Manager') return true;
+    if (profile.department === 'QA') return true;
+    return r.header.dept === profile.department;
+  };
+
   const filteredReports = useMemo(() => {
     let d = [...reports];
     
