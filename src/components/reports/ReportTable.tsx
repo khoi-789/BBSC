@@ -291,11 +291,11 @@ export default function ReportTable() {
 
           {/* Search Button (Magnifying Glass) */}
           <button 
-            className={`btn btn-primary !h-9 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/20' : 'opacity-70'}`}
+            className={`btn btn-primary !h-9 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30 shadow-lg' : 'opacity-70'}`}
             onClick={() => handleSearch()}
             title="Thực hiện tìm kiếm (Enter)"
           >
-            <Search size={18} strokeWidth={2.5} />
+            <Search size={20} strokeWidth={3} />
           </button>
 
           {/* Status Dropdown */}
