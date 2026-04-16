@@ -2,12 +2,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { BBSCReport } from '@/types';
-import { getReports, softDeleteReport } from '@/lib/services/reports';
+import { subscribeToActiveReports, getArchiveReports, softDeleteReport } from '@/lib/services/reports';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -16,7 +16,6 @@ const formatDateDisplay = (dateStr: string) => {
   if (!dateStr || dateStr === '—' || !dateStr.includes('-')) return dateStr;
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
-  // Handle yyyy-MM-dd -> dd/MM/yyyy
   if (parts[0].length === 4) return `${parts[2]}/${parts[1]}/${parts[0]}`;
   return dateStr;
 };
@@ -26,8 +25,14 @@ export default function ReportTable() {
   const { masterData, reportFilters, setReportFilters, resetReportFilters } = useAppStore();
   const { toast } = useToast();
 
+  const [activeTab, setActiveTab] = useState<'active' | 'archive'>('active');
   const [reports, setReports] = useState<BBSCReport[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Archive specific states
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiveLastVisible, setArchiveLastVisible] = useState<any>(null);
+  const [hasMoreArchive, setHasMoreArchive] = useState(true);
 
   // Unpack filters from store
   const {
@@ -44,21 +49,57 @@ export default function ReportTable() {
   const types = masterData['incident_type'] || [];
   const pics = masterData['pic'] || [];
   const tags = masterData['tag'] || [];
-  const statusOpts = (masterData['status'] || []).filter(i => i.isActive);
+  
+  // Filter status opts based on tab
+  const allStatusOpts = (masterData['status'] || []).filter(i => i.isActive);
+  const statusOpts = activeTab === 'active' 
+    ? allStatusOpts.filter(s => !['Hoàn tất', 'Hủy'].includes(s.value))
+    : allStatusOpts.filter(s => ['Hoàn tất', 'Hủy'].includes(s.value));
 
-  const load = useCallback(async () => {
+  const loadActive = useCallback(() => {
     setLoading(true);
-    try {
-      const data = await getReports();
+    setArchiveError(null);
+    return subscribeToActiveReports((data) => {
       setReports(data);
+      setLoading(false);
+    });
+  }, []);
+
+  const loadArchive = useCallback(async (isLoadMore = false) => {
+    if (!isLoadMore) {
+      setLoading(true);
+      setReports([]);
+    }
+    setArchiveError(null);
+    try {
+      const { data, lastVisible, indexError } = await getArchiveReports(
+        { dept: filterDept, supplier: filterSupplier },
+        isLoadMore ? archiveLastVisible : null,
+        pageSize
+      );
+      if (indexError) {
+        setArchiveError(indexError);
+        setHasMoreArchive(false);
+      } else {
+        setReports(prev => isLoadMore ? [...prev, ...data] : data);
+        setArchiveLastVisible(lastVisible);
+        setHasMoreArchive(data.length === pageSize);
+      }
     } catch (e: any) {
       toast(e.message || 'Lỗi tải dữ liệu', 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterDept, filterSupplier, pageSize, archiveLastVisible]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (activeTab === 'active') {
+      const unsub = loadActive();
+      return () => unsub();
+    } else {
+      loadArchive(false);
+    }
+  }, [activeTab, filterDept, filterSupplier, pageSize]); // Add dependencies for archive mode refetching
 
   const filteredReports = useMemo(() => {
     let d = [...reports];
@@ -124,8 +165,10 @@ export default function ReportTable() {
     return rows;
   }, [filteredReports, detailIncident]);
 
-  const totalPages = Math.ceil(displayRows.length / pageSize);
-  const paginatedRows = displayRows.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = activeTab === 'active' ? Math.ceil(displayRows.length / pageSize) : 1;
+  const paginatedRows = activeTab === 'active' 
+    ? displayRows.slice((page - 1) * pageSize, page * pageSize) 
+    : displayRows;
 
   function resetFilters() {
     resetReportFilters();
@@ -135,12 +178,21 @@ export default function ReportTable() {
     if (!profile) return;
     const reason = prompt(`Lý do xóa phiếu ${r.reportId}:`);
     if (reason === null) return;
+    
+    // Phase 3: Optimistic UI Delete
+    const originalReports = [...reports];
+    setReports(prev => prev.filter(report => report.id !== r.id));
+    
     try {
       await softDeleteReport(r.id, profile.uid, profile.displayName, reason);
       toast('Đã xóa phiếu thành công', 'success');
-      load();
+      if (activeTab === 'archive') {
+         loadArchive(false); // Refetch if we are in archive mode to get new items
+      }
     } catch (e: any) {
-      toast(e.message, 'error');
+      // Revert on failure
+      setReports(originalReports);
+      toast(e.message || 'Lỗi thao tác, đã hoàn tác', 'error');
     }
   }
 
@@ -159,17 +211,46 @@ export default function ReportTable() {
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Tabs */}
+      <div className="flex bg-slate-100 p-1 rounded-md w-fit mb-1 shadow-sm">
+        <button 
+          className={`px-4 py-1.5 text-[13px] font-medium rounded-sm transition-all ${activeTab === 'active' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('active')}
+        >
+          {activeTab === 'active' ? `Đang xử lý (${reports.length})` : 'Đang xử lý'}
+        </button>
+        <button 
+          className={`px-4 py-1.5 text-[13px] font-medium rounded-sm transition-all ${activeTab === 'archive' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('archive')}
+        >
+          Lưu trữ
+        </button>
+      </div>
+
+      {archiveError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in">
+          <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
+          <div>
+            Hệ thống đang cần tạo Index mục lục để tìm kiếm lưu trữ. Bạn là Admin có thể kích hoạt bằng cách 
+            <a href={archiveError} target="_blank" rel="noreferrer" className="font-bold underline text-blue-600 hover:text-blue-800 ml-1">
+               bấm vào link này
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Filters Section (Clean Style) */}
       <div className="card !p-1.5 flex flex-col gap-1.5">
         <div className="flex flex-nowrap items-center gap-2">
           {/* Search Box - Flex-1 to take remaining space */}
-          <div className="flex items-center bg-white rounded-md border border-slate-300 h-9 px-3 focus-within:border-blue-500 transition-all flex-1 min-w-0">
+          <div className={`flex items-center bg-white rounded-md border border-slate-300 h-9 px-3 transition-all flex-1 min-w-0 ${activeTab === 'archive' ? 'opacity-50 pointer-events-none bg-slate-50' : 'focus-within:border-blue-500'}`}>
             <Search size={16} className="text-slate-400 mr-2 flex-shrink-0" />
             <input
               className="outline-none text-sm w-full py-1 font-medium bg-transparent"
-              placeholder="Tìm theo BBSC, Số lô, Tên hàng..."
+              placeholder={activeTab === 'archive' ? "Lưu trữ chỉ lọc theo danh mục bên cạnh..." : "Tìm theo BBSC, Số lô, Tên hàng..."}
               value={search}
               onChange={e => { setF({ search: e.target.value, page: 1 }); }}
+              disabled={activeTab === 'archive'}
             />
           </div>
 
@@ -330,9 +411,17 @@ export default function ReportTable() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={15} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-              ) : paginatedRows.length === 0 ? (
+              {loading && reports.length === 0 ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="bg-white border-b border-slate-100">
+                    {Array.from({ length: detailIncident ? 14 : 7 }).map((_, j) => (
+                       <td key={j} className="p-3">
+                         <div className="bg-slate-200 animate-pulse h-4 rounded w-3/4"></div>
+                       </td>
+                    ))}
+                  </tr>
+                ))
+              ) : paginatedRows.length === 0 && !loading ? (
                 <tr><td colSpan={15} className="text-center py-10 text-slate-400">Không có dữ liệu</td></tr>
               ) : paginatedRows.map((row, rowIdx) => {
                 if (row.type === 'item') {
@@ -471,19 +560,33 @@ export default function ReportTable() {
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2 text-sm text-slate-500 whitespace-nowrap">
-            Hiển thị
-            <select
-              className="form-select w-16 py-1 px-2 border-slate-200"
-              value={pageSize}
-              onChange={e => setF({ pageSize: Number(e.target.value), page: 1 })}
-            >
-              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-            dòng/trang. Tổng: <strong>{displayRows.length}</strong> dòng
+        {/* Pagination & Footer */}
+        {activeTab === 'archive' ? (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50">
+             <div className="text-sm text-slate-500">Đang hiện {displayRows.length} dòng.</div>
+             {hasMoreArchive && (
+               <button 
+                 className="btn btn-outline py-1 px-4 text-[13px]" 
+                 onClick={() => loadArchive(true)} 
+                 disabled={loading}
+               >
+                 {loading ? 'Đang tải...' : 'Tải thêm...'}
+               </button>
+             )}
           </div>
+        ) : (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50">
+            <div className="flex items-center gap-2 text-sm text-slate-500 whitespace-nowrap">
+              Hiển thị
+              <select
+                className="form-select w-16 py-1 px-2 border-slate-200"
+                value={pageSize}
+                onChange={e => setF({ pageSize: Number(e.target.value), page: 1 })}
+              >
+                {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              dòng/trang. Tổng: <strong>{displayRows.length}</strong> dòng
+            </div>
           <div className="pagination">
             <button className="pagination-btn" title="Đầu trang" disabled={page === 1} onClick={() => setF({ page: 1 })}>«</button>
             <button className="pagination-btn" disabled={page === 1} onClick={() => setF({ page: page - 1 })}>‹</button>

@@ -41,12 +41,78 @@ function parseYearAndSeq(reportNo: string): { seq: number, mmyy: string } {
   };
 }
 
-// ---- READ: Get reports list (Simplified to avoid Index errors) ----
+// ---- READ: Get Active Reports (Real-time) ----
+import { onSnapshot, limit } from 'firebase/firestore';
+
+export function subscribeToActiveReports(callback: (reports: BBSCReport[]) => void): () => void {
+  // To avoid requiring a composite index immediately, we query by status
+  // and sort/filter the rest on the client side since the active set is small (< 300).
+  const q = query(
+    collection(db, COL),
+    where('header.status', 'in', ['Khởi tạo', 'Đang xử lý', 'Chờ xác nhận', 'Chờ hết INV'])
+  );
+
+  return onSnapshot(q, (snap) => {
+    let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport));
+    // Client-side filter for isDeleted
+    docs = docs.filter(r => !r.isDeleted);
+    // Client-side sort by createdAt desc
+    docs.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    callback(docs);
+  });
+}
+
+// ---- READ: Get Archive Reports (Paginated) ----
+export async function getArchiveReports(
+  filters: { dept?: string; supplier?: string }, 
+  lastVisible?: any, 
+  pageSize = 25
+): Promise<{
+  data: BBSCReport[],
+  lastVisible: any,
+  indexError?: string
+}> {
+  try {
+    let queryConstraints: any[] = [
+      where('isDeleted', '==', false),
+      where('header.status', 'in', ['Hoàn tất', 'Hủy'])
+    ];
+
+    if (filters.dept) queryConstraints.push(where('header.dept', '==', filters.dept));
+    if (filters.supplier) queryConstraints.push(where('header.supplier', '==', filters.supplier));
+
+    queryConstraints.push(orderBy('createdAt', 'desc'));
+    queryConstraints.push(limit(pageSize));
+
+    let q = query(collection(db, COL), ...queryConstraints);
+
+    if (lastVisible) {
+      q = query(q, startAfter(lastVisible));
+    }
+
+    const snap = await getDocs(q);
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport));
+    return {
+      data,
+      lastVisible: snap.docs[snap.docs.length - 1] || null
+    };
+  } catch (err: any) {
+    // If composite index is missing, Firebase returns an error with a creation URL
+    if (err.message && err.message.includes('requires an index.')) {
+      const urlMatch = err.message.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
+      return { data: [], lastVisible: null, indexError: urlMatch ? urlMatch[0] : err.message };
+    }
+    throw err;
+  }
+}
+
+// Legacy, keeping it safe for compatibility if needed elsewhere briefly
 export async function getReports(): Promise<BBSCReport[]> {
   const q = query(
     collection(db, COL),
     where('isDeleted', '==', false),
-    orderBy('createdAt', 'desc')
+    orderBy('createdAt', 'desc'),
+    limit(500) // Safety net
   );
 
   const snap = await getDocs(q);
