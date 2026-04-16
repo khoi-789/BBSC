@@ -173,6 +173,7 @@ export default function MigrationPage() {
   // Track new PICs & Tags that will be auto-created
   const [newPics, setNewPics] = useState<string[]>([]);
   const [newTags, setNewTags] = useState<string[]>([]);
+  const [newMaster, setNewMaster] = useState<{group: string, key: string}[]>([]);
 
   if (profile?.role !== 'Admin') {
     return (
@@ -215,6 +216,11 @@ export default function MigrationPage() {
         // Collect unique PICs and Tags from CSV
         const csvPics = new Set<string>();
         const csvTags = new Set<string>();
+        const csvSuppliers = new Set<string>();
+        const csvDepts = new Set<string>();
+        const csvIncidents = new Set<string>();
+        const csvClasses = new Set<string>();
+        const csvUnits = new Set<string>();
 
         grouped.forEach((rowGroup, uuid) => {
           // Sort by LAST_UPDATED ascending (oldest first)
@@ -231,7 +237,7 @@ export default function MigrationPage() {
           const liveDoc = transformRow(liveRow);
           if (!liveDoc) { skip++; return; }
 
-          // Collect PICs and Tags
+          // Collect Master Data fields
           try {
             const payload = JSON.parse(liveRow.DATA_PAYLOAD);
             const h = payload.header || {};
@@ -240,6 +246,15 @@ export default function MigrationPage() {
             if (h.tags?.trim()) {
               h.tags.split(',').forEach((t: string) => { if (t.trim()) csvTags.add(t.trim()); });
             }
+            if (h.supplier?.trim()) csvSuppliers.add(h.supplier.trim());
+            if (h.dept?.trim()) csvDepts.add(h.dept.trim());
+            if (h.incident_type?.trim()) csvIncidents.add(h.incident_type.trim());
+            if (h.classification?.trim()) csvClasses.add(h.classification.trim());
+
+            const rawItems = payload.items || [];
+            rawItems.forEach((it: any) => {
+              if (it.uom?.trim()) csvUnits.add(it.uom.trim());
+            });
           } catch { /* skip */ }
 
           // Build audit entries for ALL rows (including live = last version)
@@ -282,12 +297,31 @@ export default function MigrationPage() {
           setNewPics(Array.from(csvPics).filter(p => !existingPics.has(p)));
         } catch { setNewPics([]); }
 
-        // --- Compare with existing Tags in Firestore ---
+        // --- Compare with existing Tags & MasterData in Firestore ---
         try {
-          const tagsSnap = await getDocs(query(collection(db, 'master_data'), where('group', '==', 'tag')));
-          const existingTags = new Set(tagsSnap.docs.map(d => d.data().key as string).filter(Boolean));
+          const mdSnap = await getDocs(collection(db, 'master_data'));
+          const existingTags = new Set<string>();
+          const existingMaster = new Set<string>(); // "group|key"
+          mdSnap.docs.forEach(d => {
+            const docData = d.data();
+            if (docData.group === 'tag' && docData.key) existingTags.add(docData.key as string);
+            if (docData.group && docData.key) existingMaster.add(`${docData.group}|${docData.key}`);
+          });
+
           setNewTags(Array.from(csvTags).filter(t => !existingTags.has(t)));
-        } catch { setNewTags([]); }
+
+          const toAdd: {group: string, key: string}[] = [];
+          Array.from(csvSuppliers).forEach(v => { if (!existingMaster.has(`supplier|${v}`)) toAdd.push({group: 'supplier', key: v}); });
+          Array.from(csvDepts).forEach(v => { if (!existingMaster.has(`dept|${v}`)) toAdd.push({group: 'dept', key: v}); });
+          Array.from(csvIncidents).forEach(v => { if (!existingMaster.has(`incident_type|${v}`)) toAdd.push({group: 'incident_type', key: v}); });
+          Array.from(csvClasses).forEach(v => { if (!existingMaster.has(`classification|${v}`)) toAdd.push({group: 'classification', key: v}); });
+          Array.from(csvUnits).forEach(v => { if (!existingMaster.has(`unit|${v}`)) toAdd.push({group: 'unit', key: v}); });
+          
+          setNewMaster(toAdd);
+        } catch { 
+          setNewTags([]); 
+          setNewMaster([]);
+        }
 
         setTotalSkipped(skip);
         setTotalHistory(totalHist);
@@ -331,8 +365,8 @@ export default function MigrationPage() {
         setLog([...logs]);
       }
 
-      if (newTags.length > 0) {
-        logs.push(`🏷️ Đang tạo ${newTags.length} Tag mới chưa có trong hệ thống...`);
+      if (newTags.length > 0 || newMaster.length > 0) {
+        logs.push(`🏷️ Đang tạo Dữ liệu danh mục mới chưa có trong hệ thống...`);
         setLog([...logs]);
         for (const tagName of newTags) {
           await addDoc(collection(db, 'master_data'), {
@@ -344,6 +378,17 @@ export default function MigrationPage() {
             createdAt: Timestamp.now(),
           });
           logs.push(`  ✅ Thêm Tag: ${tagName}`);
+        }
+        for (const md of newMaster) {
+          await addDoc(collection(db, 'master_data'), {
+            group: md.group,
+            key: md.key,
+            value: md.key,
+            order: 99,
+            isActive: true,
+            createdAt: Timestamp.now(),
+          });
+          logs.push(`  ✅ Thêm MD [${md.group}]: ${md.key}`);
         }
         setLog([...logs]);
       }
@@ -587,6 +632,21 @@ export default function MigrationPage() {
                     <div className="flex flex-wrap gap-1 mt-1">
                       {newTags.map(t => (
                         <span key={t} className="px-2 py-0.5 bg-white border border-purple-200 text-purple-700 rounded-full text-xs font-bold">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {newMaster.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Database size={14} className="text-green-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-green-600">{newMaster.length} Dữ liệu danh mục mới (NCC, Loại, Bộ phận, ĐVT...):</p>
+                    <div className="flex flex-wrap gap-1 mt-1 max-h-32 overflow-y-auto">
+                      {newMaster.map(m => (
+                        <span key={`${m.group}-${m.key}`} className="px-2 py-0.5 bg-white border border-green-200 text-green-700 rounded-full text-[10px] font-bold object-contain whitespace-nowrap">
+                          [{m.group}] {m.key}
+                        </span>
                       ))}
                     </div>
                   </div>
