@@ -99,6 +99,36 @@ export default function ReportTable() {
 
   const handleSearch = () => fetchData(false);
 
+  const handleReindex = async () => {
+    if (!profile || profile.role !== 'Admin') return;
+    if (!confirm('Hệ thống sẽ cập nhật lại Mục lục (Mã hàng/Số lô) cho 1400 dòng cũ. Việc này tốn khoảng 1400 lượt Read/Write. Bạn chắc chứ?')) return;
+    
+    setLoading(true);
+    try {
+      // 1. Get all reports (Legacy fetcher)
+      const { getReportsLegacy, updateReport } = await import('@/lib/services/reports');
+      const all = await getReportsLegacy();
+      
+      toast(`Bắt đầu xử lý ${all.length} dòng...`, 'info');
+      
+      // 2. Update each with its own items
+      let count = 0;
+      for (const r of all) {
+        // Calling updateReport will automatically invoke prepareSearchIndices
+        await updateReport(r.id, { items: r.items }, profile.uid, profile.displayName);
+        count++;
+        if (count % 100 === 0) toast(`Đã xử lý ${count}/${all.length}...`, 'info');
+      }
+      
+      toast(`Thành công! Đã cập nhật ${count} dòng.`, 'success');
+      handleSearch();
+    } catch (e: any) {
+      toast(e.message || 'Lỗi bảo trì', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
   };
@@ -279,6 +309,11 @@ export default function ReportTable() {
             <button className={`btn btn-ghost !h-8 !w-8 p-0 border border-slate-200 ${showAdvanced ? 'bg-blue-50 border-blue-300' : 'bg-white'}`} onClick={() => setF({ showAdvanced: !showAdvanced })}>
               <Filter size={16} className={showAdvanced ? 'text-blue-600' : 'text-slate-500'} />
             </button>
+            {profile?.role === 'Admin' && (
+              <button className="btn btn-ghost !h-8 !w-8 p-0 border border-slate-200 bg-white" title="Bảo trì mục lục (Re-index)" onClick={handleReindex}>
+                <RefreshCw size={14} className="text-amber-600" />
+              </button>
+            )}
           </div>
         </div>
 
