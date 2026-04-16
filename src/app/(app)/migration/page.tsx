@@ -78,6 +78,21 @@ function cleanUnit(uom: string): string {
   return str;
 }
 
+function cleanDept(dept: string): string {
+  if (!dept) return '';
+  const str = String(dept).trim().toLowerCase();
+  
+  if (['kho nhap', 'kho nhập'].includes(str)) return 'Kho Nhập';
+  if (['kho lanh', 'kho lạnh'].includes(str)) return 'Kho Lạnh';
+  if (['phong qa', 'phòng qa', 'qa'].includes(str)) return 'Phòng QA';
+  if (['kho xuat', 'kho xuất'].includes(str)) return 'Kho Xuất';
+  if (['kho biet tru', 'kho biệt trữ'].includes(str)) return 'Kho Biệt Trữ';
+  if (['team dgc2', 'team đgc2', 'dgc2'].includes(str)) return 'Team ĐGC2';
+
+  // Fallback: capitalize each word
+  return dept.replace(/\b\w/g, l => l.toUpperCase());
+}
+
 function msToTimestamp(ms: number | string): Timestamp {
   const n = typeof ms === 'string' ? parseInt(ms, 10) : ms;
   return Timestamp.fromMillis(isNaN(n) ? Date.now() : n);
@@ -113,7 +128,7 @@ function transformRow(row: GasRow): object | null {
         supplier: String(h.supplier || '').trim(),
         invoiceNo: String(h.invoice_no || '').trim(),
         incidentType: String(h.incident_type || '').trim(),
-        dept: String(h.dept || '').trim(),
+        dept: cleanDept(String(h.dept || '')),
         pic: String(h.pic || '').trim(),
         subPic: String(h.sub_pic || '').trim(),
         tags: String(h.tags || '').trim(),
@@ -269,7 +284,7 @@ export default function MigrationPage() {
               h.tags.split(',').forEach((t: string) => { if (t.trim()) csvTags.add(t.trim()); });
             }
             if (h.supplier?.trim()) csvSuppliers.add(h.supplier.trim());
-            if (h.dept?.trim()) csvDepts.add(h.dept.trim());
+            if (h.dept?.trim()) csvDepts.add(cleanDept(h.dept));
             if (h.incident_type?.trim()) csvIncidents.add(h.incident_type.trim());
             if (h.classification?.trim()) csvClasses.add(h.classification.trim());
 
