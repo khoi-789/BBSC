@@ -88,9 +88,11 @@ async function migrateExcel() {
               expiryDate: it.expired_date || "",
               quantity: Number(it.quantity) || 0,
               unit: it.uom || "",
-              issueType: payload.header.classification || "",
+              lpn: it.lpn || "",
+              asn: it.asn || "",
+              issueType: it.problem_detail || "",
               detailedDescription: it.problem_detail || "",
-              action: it.item_action || ""
+              note: it.item_action || ""
             })),
             createdBy: "Migration",
             createdByName: "Hệ thống GAS",

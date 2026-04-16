@@ -117,9 +117,9 @@ async function migrateSmart() {
             unit: it.uom || "",
             lpn: it.lpn || "",
             asn: it.asn || "",
-            issueType: payload.header.classification || "",
+            issueType: it.problem_detail || "",
             detailedDescription: it.problem_detail || "",
-            action: it.item_action || ""
+            note: it.item_action || ""
           })),
           createdBy: "Migration",
           createdByName: "Hệ thống GAS",

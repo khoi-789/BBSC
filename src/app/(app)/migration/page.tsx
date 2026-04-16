@@ -5,14 +5,14 @@ import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import {
   collection, doc, writeBatch, Timestamp, getDocs,
-  query, where, setDoc, getDoc
+  query, where, setDoc, getDoc, addDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'next/navigation';
 import {
   Upload, FileText, CheckCircle2, AlertTriangle, Trash2,
-  Database, ArrowRight, RotateCcw, Info, History
+  Database, ArrowRight, RotateCcw, Info, UserPlus, Tag
 } from 'lucide-react';
 
 // ========================
@@ -170,6 +170,9 @@ export default function MigrationPage() {
   const [progress, setProgress] = useState(0);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Track new PICs & Tags that will be auto-created
+  const [newPics, setNewPics] = useState<string[]>([]);
+  const [newTags, setNewTags] = useState<string[]>([]);
 
   if (profile?.role !== 'Admin') {
     return (
@@ -187,11 +190,13 @@ export default function MigrationPage() {
     const file = files[0];
     if (!file) return;
     setError(null);
+    setNewPics([]);
+    setNewTags([]);
 
     Papa.parse<GasRow>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
         const rows = results.data as GasRow[];
 
         // Group all rows by UUID
@@ -207,6 +212,10 @@ export default function MigrationPage() {
         let totalHist = 0;
         const data: MigrationData[] = [];
 
+        // Collect unique PICs and Tags from CSV
+        const csvPics = new Set<string>();
+        const csvTags = new Set<string>();
+
         grouped.forEach((rowGroup, uuid) => {
           // Sort by LAST_UPDATED ascending (oldest first)
           rowGroup.sort((a, b) => {
@@ -221,6 +230,17 @@ export default function MigrationPage() {
 
           const liveDoc = transformRow(liveRow);
           if (!liveDoc) { skip++; return; }
+
+          // Collect PICs and Tags
+          try {
+            const payload = JSON.parse(liveRow.DATA_PAYLOAD);
+            const h = payload.header || {};
+            if (h.pic?.trim()) csvPics.add(h.pic.trim());
+            if (h.sub_pic?.trim()) csvPics.add(h.sub_pic.trim());
+            if (h.tags?.trim()) {
+              h.tags.split(',').forEach((t: string) => { if (t.trim()) csvTags.add(t.trim()); });
+            }
+          } catch { /* skip */ }
 
           // Build audit entries for ALL rows (including live = last version)
           const auditEntries: object[] = [];
@@ -255,6 +275,20 @@ export default function MigrationPage() {
           });
         });
 
+        // --- Compare with existing PICs in Firestore ---
+        try {
+          const usersSnap = await getDocs(query(collection(db, 'users'), where('isPic', '==', true)));
+          const existingPics = new Set(usersSnap.docs.map(d => d.data().linkedPic as string).filter(Boolean));
+          setNewPics(Array.from(csvPics).filter(p => !existingPics.has(p)));
+        } catch { setNewPics([]); }
+
+        // --- Compare with existing Tags in Firestore ---
+        try {
+          const tagsSnap = await getDocs(query(collection(db, 'master_data'), where('group', '==', 'tag')));
+          const existingTags = new Set(tagsSnap.docs.map(d => d.data().key as string).filter(Boolean));
+          setNewTags(Array.from(csvTags).filter(t => !existingTags.has(t)));
+        } catch { setNewTags([]); }
+
         setTotalSkipped(skip);
         setTotalHistory(totalHist);
         setMigrationData(data);
@@ -278,6 +312,42 @@ export default function MigrationPage() {
     setLog([]);
 
     try {
+      // Step 0: Auto-seed missing PICs and Tags
+      if (newPics.length > 0) {
+        logs.push(`👤 Đang tạo ${newPics.length} PIC mới chưa có trong hệ thống...`);
+        setLog([...logs]);
+        for (const picName of newPics) {
+          await addDoc(collection(db, 'users'), {
+            displayName: picName,
+            linkedPic: picName,
+            role: 'Staff',
+            isPic: true,
+            isActive: true,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+          logs.push(`  ✅ Thêm PIC: ${picName}`);
+        }
+        setLog([...logs]);
+      }
+
+      if (newTags.length > 0) {
+        logs.push(`🏷️ Đang tạo ${newTags.length} Tag mới chưa có trong hệ thống...`);
+        setLog([...logs]);
+        for (const tagName of newTags) {
+          await addDoc(collection(db, 'master_data'), {
+            group: 'tag',
+            key: tagName,
+            value: tagName,
+            order: 99,
+            isActive: true,
+            createdAt: Timestamp.now(),
+          });
+          logs.push(`  ✅ Thêm Tag: ${tagName}`);
+        }
+        setLog([...logs]);
+      }
+
       // Step 1: Clear existing demo reports
       logs.push('🔍 Đang xóa dữ liệu demo cũ...');
       setLog([...logs]);
@@ -489,6 +559,41 @@ export default function MigrationPage() {
               <button onClick={() => setStep('confirm')} className="btn-primary flex items-center gap-1.5">Tiếp tục <ArrowRight size={13} /></button>
             </div>
           </div>
+
+          {/* Auto-seed warnings */}
+          {(newPics.length > 0 || newTags.length > 0) && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl space-y-2">
+              <p className="text-sm font-bold text-blue-700 flex items-center gap-2">
+                <Info size={15} /> Hệ thống sẽ tự động tạo thêm dữ liệu sau khi import:
+              </p>
+              {newPics.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <UserPlus size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-blue-600">{newPics.length} PIC/sub-PIC mới (chưa có trong Quản lý Nhân sự):</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {newPics.map(p => (
+                        <span key={p} className="px-2 py-0.5 bg-white border border-blue-200 text-blue-700 rounded-full text-xs font-bold">{p}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {newTags.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Tag size={14} className="text-purple-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-purple-600">{newTags.length} Nhãn (Tag) mới (chưa có trong Cấu hình):</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {newTags.map(t => (
+                        <span key={t} className="px-2 py-0.5 bg-white border border-purple-200 text-purple-700 rounded-full text-xs font-bold">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
