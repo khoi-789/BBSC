@@ -101,7 +101,14 @@ export default function ReportTable() {
     setArchiveError(null);
     try {
       const { data, lastVisible, indexError } = await getArchiveReports(
-        { dept: filterDept, supplier: filterSupplier },
+        { 
+          dept: filterDept, 
+          supplier: filterSupplier,
+          status: filterStatus,
+          class: filterClass,
+          type: filterType,
+          tag: filterTag
+        },
         isLoadMore ? archiveLastVisible : null,
         pageSize
       );

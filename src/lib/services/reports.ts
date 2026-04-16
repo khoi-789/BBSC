@@ -64,7 +64,14 @@ export function subscribeToActiveReports(callback: (reports: BBSCReport[]) => vo
 
 // ---- READ: Get Archive Reports (Paginated) ----
 export async function getArchiveReports(
-  filters: { dept?: string; supplier?: string }, 
+  filters: { 
+    dept?: string; 
+    supplier?: string;
+    class?: string;
+    type?: string;
+    tag?: string;
+    status?: string;
+  }, 
   lastVisible?: any, 
   pageSize = 25
 ): Promise<{
@@ -74,13 +81,23 @@ export async function getArchiveReports(
 }> {
   try {
     let queryConstraints: any[] = [
-      where('isDeleted', '==', false),
-      where('header.status', 'in', ['Hoàn tất', 'Hủy'])
+      where('isDeleted', '==', false)
     ];
+
+    // Status filter
+    if (filters.status) {
+      queryConstraints.push(where('header.status', '==', filters.status));
+    } else {
+      queryConstraints.push(where('header.status', 'in', ['Hoàn tất', 'Hủy']));
+    }
 
     if (filters.dept) queryConstraints.push(where('header.dept', '==', filters.dept));
     if (filters.supplier) queryConstraints.push(where('header.supplier', '==', filters.supplier));
+    if (filters.class) queryConstraints.push(where('header.classification', '==', filters.class));
+    if (filters.type) queryConstraints.push(where('header.incidentType', '==', filters.type));
+    if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
 
+    queryConstraints.push(orderBy('header.status', 'asc')); // Needed for the 'in' or '==' status query to work with ordering
     queryConstraints.push(orderBy('createdAt', 'desc'));
     queryConstraints.push(limit(pageSize));
 
