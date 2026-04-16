@@ -97,13 +97,18 @@ export default function ReportForm({ existing }: ReportFormProps) {
   useEffect(() => {
     getPicUsers().then(users => {
       setPicUsers(users);
-      if (existing) {
-        // RHF async default value fix: re-apply values so <select> visually updates when options arrive
+    });
+  }, []);
+
+  // RHF async default value fix: re-apply values AFTER options have securely rendered in the DOM
+  useEffect(() => {
+    if (existing && picUsers.length > 0) {
+      setTimeout(() => {
         setValue('header.pic', existing.header.pic || '', { shouldDirty: false });
         setValue('header.subPic', existing.header.subPic || '', { shouldDirty: false });
-      }
-    });
-  }, [existing, setValue]);
+      }, 0); // Slight delay ensures RHF updates value after <option> elements exist
+    }
+  }, [picUsers, existing, setValue]);
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
 

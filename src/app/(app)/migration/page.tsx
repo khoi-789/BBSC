@@ -76,6 +76,7 @@ function transformRow(row: GasRow): object | null {
       quantity: Number(item.quantity) || 0,
       unit: String(item.uom || '').trim(),
       issueType: String(item.problem_detail || '').trim(),
+      detailedDescription: String(item.problem_detail || '').trim(),
       note: String(item.item_action || '').trim(),
       lpn: String(item.lpn || '').trim(),
       asn: String(item.asn || '').trim(),

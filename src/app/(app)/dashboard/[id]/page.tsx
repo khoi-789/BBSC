@@ -158,8 +158,8 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
                   <td className="text-[12px] px-1">{item.unit}</td>
                   <td className="text-[11px] font-mono text-slate-500">{item.lpn || '—'}</td>
                   <td className="text-[11px] font-mono text-slate-500">{item.asn || '—'}</td>
-                  <td className="max-w-[250px] truncate text-[12px] text-slate-700" title={item.detailedDescription}>
-                    {item.detailedDescription || '—'}
+                  <td className="max-w-[250px] truncate text-[12px] text-slate-700" title={item.detailedDescription || item.issueType}>
+                    {item.detailedDescription || item.issueType || '—'}
                   </td>
                   <td className="max-w-[150px] truncate text-[12px] italic text-slate-500" title={item.note}>
                     {item.note || '—'}
