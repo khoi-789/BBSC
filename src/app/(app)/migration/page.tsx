@@ -52,45 +52,49 @@ const STATUS_MAP: Record<string, string> = {
   'CHỜ XÁC NHẬN': 'Chờ xác nhận',
 };
 
+function normStr(s: string): string {
+  return (s || '').normalize('NFC').trim();
+}
+
 function normalizeStatus(s: string): string {
-  const upper = (s || '').trim().toUpperCase();
+  const upper = normStr(s).toUpperCase();
   return STATUS_MAP[upper] || (s || '').trim();
 }
 
 function cleanUnit(uom: string): string {
   if (!uom) return '';
-  const str = String(uom).trim().toUpperCase();
+  const str = normStr(uom).toUpperCase();
   
-  if (['HOP', 'HÕP', 'HỌP', 'HỘP', 'HỢP'].includes(str)) return 'HỘP';
-  if (['CAI', 'CÁI'].includes(str)) return 'CÁI';
-  if (['CHAI', 'CHÁI'].includes(str)) return 'CHAI';
-  if (['LO', 'LỌ'].includes(str)) return 'LỌ';
-  if (['ONG', 'ÓNG', 'ỐNG', 'ÕNG'].includes(str)) return 'ỐNG';
-  if (['THUNG', 'THÚNG', 'THÙNG'].includes(str)) return 'THÙNG';
-  if (['VI', 'VỊ', 'VĨ', 'VỈ'].includes(str)) return 'VỈ';
-  if (['VIEN', 'VIÊN'].includes(str)) return 'VIÊN';
-  if (['GOI', 'GÓI'].includes(str)) return 'GÓI';
-  if (['TUYP', 'TUÝP'].includes(str)) return 'TUÝP';
+  if (['HOP', 'HÕP', 'HỌP', 'HỘP', 'HỢP'].map(v => v.normalize('NFC')).includes(str)) return 'HỘP'.normalize('NFC');
+  if (['CAI', 'CÁI'].map(v => v.normalize('NFC')).includes(str)) return 'CÁI'.normalize('NFC');
+  if (['CHAI', 'CHÁI'].map(v => v.normalize('NFC')).includes(str)) return 'CHAI'.normalize('NFC');
+  if (['LO', 'LỌ'].map(v => v.normalize('NFC')).includes(str)) return 'LỌ'.normalize('NFC');
+  if (['ONG', 'ÓNG', 'ỐNG', 'ÕNG'].map(v => v.normalize('NFC')).includes(str)) return 'ỐNG'.normalize('NFC');
+  if (['THUNG', 'THÚNG', 'THÙNG'].map(v => v.normalize('NFC')).includes(str)) return 'THÙNG'.normalize('NFC');
+  if (['VI', 'VỊ', 'VĨ', 'VỈ'].map(v => v.normalize('NFC')).includes(str)) return 'VỈ'.normalize('NFC');
+  if (['VIEN', 'VIÊN'].map(v => v.normalize('NFC')).includes(str)) return 'VIÊN'.normalize('NFC');
+  if (['GOI', 'GÓI'].map(v => v.normalize('NFC')).includes(str)) return 'GÓI'.normalize('NFC');
+  if (['TUYP', 'TUÝP'].map(v => v.normalize('NFC')).includes(str)) return 'TUÝP'.normalize('NFC');
   if (['PALLET'].includes(str)) return 'PALLET';
   if (['LON'].includes(str)) return 'LON';
-  if (['HOP LON', 'HỘP LỚN'].includes(str)) return 'HỘP LỚN';
+  if (['HOP LON', 'HỘP LỚN'].map(v => v.normalize('NFC')).includes(str)) return 'HỘP LỚN'.normalize('NFC');
 
   return str;
 }
 
 function cleanDept(dept: string): string {
   if (!dept) return '';
-  const str = String(dept).trim().toLowerCase();
+  const str = normStr(dept).toLowerCase();
   
-  if (['kho nhap', 'kho nhập'].includes(str)) return 'Kho Nhập';
-  if (['kho lanh', 'kho lạnh'].includes(str)) return 'Kho Lạnh';
-  if (['phong qa', 'phòng qa', 'qa'].includes(str)) return 'Phòng QA';
-  if (['kho xuat', 'kho xuất'].includes(str)) return 'Kho Xuất';
-  if (['kho biet tru', 'kho biệt trữ'].includes(str)) return 'Kho Biệt Trữ';
-  if (['team dgc2', 'team đgc2', 'dgc2'].includes(str)) return 'Team ĐGC2';
+  if (['kho nhap', 'kho nhập'].map(v => v.normalize('NFC')).includes(str)) return 'Kho Nhập'.normalize('NFC');
+  if (['kho lanh', 'kho lạnh'].map(v => v.normalize('NFC')).includes(str)) return 'Kho Lạnh'.normalize('NFC');
+  if (['phong qa', 'phòng qa', 'qa'].map(v => v.normalize('NFC')).includes(str)) return 'Phòng QA'.normalize('NFC');
+  if (['kho xuat', 'kho xuất'].map(v => v.normalize('NFC')).includes(str)) return 'Kho Xuất'.normalize('NFC');
+  if (['kho biet tru', 'kho biệt trữ'].map(v => v.normalize('NFC')).includes(str)) return 'Kho Biệt Trữ'.normalize('NFC');
+  if (['team dgc2', 'team đgc2', 'dgc2'].map(v => v.normalize('NFC')).includes(str)) return 'Team ĐGC2'.normalize('NFC');
 
   // Fallback: capitalize each word
-  return dept.replace(/\b\w/g, l => l.toUpperCase());
+  return normStr(dept).replace(/\b\w/g, l => l.toUpperCase());
 }
 
 function msToTimestamp(ms: number | string): Timestamp {
@@ -341,18 +345,50 @@ export default function MigrationPage() {
           const existingMaster = new Set<string>(); // "group|key"
           mdSnap.docs.forEach(d => {
             const docData = d.data();
-            if (docData.group === 'tag' && docData.key) existingTags.add(docData.key as string);
-            if (docData.group && docData.key) existingMaster.add(`${docData.group}|${docData.key}`);
+            if (docData.group === 'tag' && docData.key) existingTags.add(normStr(docData.key as string));
+            if (docData.group && docData.key) existingMaster.add(`${docData.group}|${normStr(docData.key as string)}`);
           });
 
-          setNewTags(Array.from(csvTags).filter(t => !existingTags.has(t)));
+          setNewTags(Array.from(csvTags).map(v => normStr(v)).filter(t => !existingTags.has(t)));
 
           const toAdd: {group: string, key: string}[] = [];
-          Array.from(csvSuppliers).forEach(v => { if (!existingMaster.has(`supplier|${v}`)) toAdd.push({group: 'supplier', key: v}); });
-          Array.from(csvDepts).forEach(v => { if (!existingMaster.has(`dept|${v}`)) toAdd.push({group: 'dept', key: v}); });
-          Array.from(csvIncidents).forEach(v => { if (!existingMaster.has(`incident_type|${v}`)) toAdd.push({group: 'incident_type', key: v}); });
-          Array.from(csvClasses).forEach(v => { if (!existingMaster.has(`classification|${v}`)) toAdd.push({group: 'classification', key: v}); });
-          Array.from(csvUnits).forEach(v => { if (!existingMaster.has(`unit|${v}`)) toAdd.push({group: 'unit', key: v}); });
+          const addedKeys = new Set<string>(); // Final uniqueness check
+
+          Array.from(csvSuppliers).forEach(v => { 
+            const k = normStr(v);
+            if (!existingMaster.has(`supplier|${k}`) && !addedKeys.has(`supplier|${k}`)) {
+              toAdd.push({group: 'supplier', key: k});
+              addedKeys.add(`supplier|${k}`);
+            }
+          });
+          Array.from(csvDepts).forEach(v => { 
+            const k = normStr(v);
+            if (!existingMaster.has(`dept|${k}`) && !addedKeys.has(`dept|${k}`)) {
+              toAdd.push({group: 'dept', key: k});
+              addedKeys.add(`dept|${k}`);
+            }
+          });
+          Array.from(csvIncidents).forEach(v => { 
+            const k = normStr(v);
+            if (!existingMaster.has(`incident_type|${k}`) && !addedKeys.has(`incident_type|${k}`)) {
+              toAdd.push({group: 'incident_type', key: k});
+              addedKeys.add(`incident_type|${k}`);
+            }
+          });
+          Array.from(csvClasses).forEach(v => { 
+            const k = normStr(v);
+            if (!existingMaster.has(`classification|${k}`) && !addedKeys.has(`classification|${k}`)) {
+              toAdd.push({group: 'classification', key: k});
+              addedKeys.add(`classification|${k}`);
+            }
+          });
+          Array.from(csvUnits).forEach(v => { 
+            const k = normStr(v);
+            if (!existingMaster.has(`unit|${k}`) && !addedKeys.has(`unit|${k}`)) {
+              toAdd.push({group: 'unit', key: k});
+              addedKeys.add(`unit|${k}`);
+            }
+          });
           
           setNewMaster(toAdd);
         } catch { 
