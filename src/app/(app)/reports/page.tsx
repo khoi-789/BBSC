@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { getReports } from '@/lib/services/reports';
+import { getReportsLegacy } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
 import { useAppStore } from '@/stores/appStore';
 import { 
@@ -31,7 +31,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!isMasterDataLoaded) loadMasterData();
     let isMounted = true;
-    getReports().then(data => {
+    getReportsLegacy().then(data => {
       if (isMounted) {
         setReports(data || []);
         setLoading(false);

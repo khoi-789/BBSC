@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getReports } from '@/lib/services/reports';
+import { getReportsLegacy } from '@/lib/services/reports';
 import { updateReport } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
@@ -41,7 +41,7 @@ export default function TasksPage() {
 
   async function loadData() {
     setLoading(true);
-    const data = await getReports();
+    const data = await getReportsLegacy();
     const active = data.filter(r => !r.isDeleted && !['Hoàn tất', 'Hủy'].includes(r.header.status));
     setReports(active);
     

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getReports } from '@/lib/services/reports';
+import { getReportsLegacy } from '@/lib/services/reports';
 import { BBSCReport } from '@/types';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -23,7 +23,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getReports().then(data => { setReports(data); setLoading(false); });
+    getReportsLegacy().then(data => { setReports(data); setLoading(false); });
   }, []);
 
   if (loading) return <div className="text-center py-20 text-slate-400">Đang tải dữ liệu...</div>;
