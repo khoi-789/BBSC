@@ -53,7 +53,28 @@ export const useAppStore = create<AppState>((set) => ({
 
   loadMasterData: async () => {
     try {
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('master_data_cache');
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          // Check if cache is older than 12 hours
+          const isExpired = Date.now() - timestamp > 12 * 60 * 60 * 1000;
+          if (!isExpired) {
+            set({ masterData: data, isMasterDataLoaded: true });
+            return;
+          }
+        }
+      }
+
       const data = await getMasterData();
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('master_data_cache', JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }));
+      }
+
       set({ masterData: data, isMasterDataLoaded: true });
     } catch (e) {
       console.error('Failed to load master data:', e);
