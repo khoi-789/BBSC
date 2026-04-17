@@ -667,24 +667,21 @@ export default function ReportTable() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 gap-4">
-           <div className="flex flex-wrap items-center gap-4">
-             <div className="text-[13px] text-slate-500 font-medium">
-                Đang xem trang <strong>{currentPage + 1}</strong> <span className="text-slate-400">({paginatedReports.length} dòng)</span>
-                <span className="ml-1 text-slate-500">trong <strong>{totalFilteredCount.toLocaleString()}</strong> kết quả</span>
-             </div>
-             <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                Hiển thị:
-                <select
-                  className="form-select w-16 !h-7 !py-0 border-slate-300 bg-white"
-                  value={pageSize}
-                  onChange={e => { setF({ pageSize: Number(e.target.value) }); }}
-                >
-                  {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-             </div>
+           {/* Left side: Page Size Selector (Simplified) */}
+           <div className="flex items-center gap-2 text-[12px] text-slate-500 font-medium">
+              Hiển thị:
+              <select
+                className="form-select w-16 !h-8 !py-0 border-slate-300 bg-white rounded shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                value={pageSize}
+                onChange={e => { setF({ pageSize: Number(e.target.value) }); }}
+              >
+                {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <span>dòng / trang</span>
            </div>
            
-           <div className="flex items-center gap-1">
+           {/* Right side: Fixed-position Pagination */}
+           <div className="flex items-center gap-1 ml-auto">
              <button 
                 className={`btn btn-ghost !h-8 w-8 p-0 flex items-center justify-center transition-all ${currentPage === 0 || loading ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:shadow-sm hover:text-blue-600'}`} 
                 onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
