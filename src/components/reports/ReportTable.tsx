@@ -184,7 +184,7 @@ export default function ReportTable() {
   };
 
   const filteredReports = useMemo(() => {
-    let d = [...reports];
+    let d = [...reports].filter(r => !r.isDeleted);
     d.sort((a, b) => {
       const parseId = (id: string) => {
         const parts = id.split('-');

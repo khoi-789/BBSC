@@ -86,9 +86,7 @@ export async function getReports(
   indexError?: string
 }> {
   try {
-    let queryConstraints: any[] = [
-      where('isDeleted', '==', false)
-    ];
+    let queryConstraints: any[] = [];
 
     // 1. Partial Report ID Search (Range Query)
     if (filters.reportId && filters.reportId.length > 0) {
@@ -201,16 +199,13 @@ export async function getReportsCount(
   }
 ): Promise<number> {
   try {
-    let queryConstraints: any[] = [
-      where('isDeleted', '==', false)
-    ];
+    let queryConstraints: any[] = [];
 
     if (filters.reportId && filters.reportId.length > 0) {
       const term = filters.reportId.trim().toUpperCase();
       const searchPrefix = term.startsWith('BBSC-') ? term : `BBSC-${term}`;
       const q = query(
         collection(db, COL), 
-        where('isDeleted', '==', false),
         where('reportId', '>=', searchPrefix),
         where('reportId', '<=', searchPrefix + '\uf8ff')
       );
