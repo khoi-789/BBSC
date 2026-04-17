@@ -30,11 +30,8 @@ export default function ReportTable() {
 
   const [loading, setLoading] = useState(true);
   
-  // Search Metadata
-  const [appliedFilters, setAppliedFilters] = useState(reportFilters);
   const [isDirty, setIsDirty] = useState(false);
-  const [indexError, setIndexError] = useState<string | null>(null);
-
+  
   // Pagination
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -46,22 +43,21 @@ export default function ReportTable() {
   } = reportFilters;
 
   useEffect(() => {
-    const hasChanged = JSON.stringify(reportFilters) !== JSON.stringify(appliedFilters);
-    setIsDirty(hasChanged);
-  }, [reportFilters, appliedFilters]);
+    setIsDirty(false); // No longer needed for local filters
+  }, [reportFilters]);
 
-  const setF = (updates: any) => setReportFilters(updates);
+  const setF = (updates: any) => {
+    setReportFilters(updates);
+    setCurrentPage(0); // Reset page on filter change
+  };
 
   // ---- FETCH LOGIC (Unified + Next/Prev Cursors) ----
   const fetchData = useCallback(async (isRefresh = false) => {
     setLoading(true);
-    setIndexError(null);
     
     const state = useAppStore.getState();
     const currentFilters = state.reportFilters;
 
-    setAppliedFilters(currentFilters);
-    setIsDirty(false);
 
     try {
       // Dùng syncReports để lấy phần Diff (những gì thay đổi)
@@ -95,7 +91,6 @@ export default function ReportTable() {
   const handleReset = () => {
     resetReportFilters();
     setTimeout(() => {
-      setAppliedFilters(useAppStore.getState().reportFilters);
       setCurrentPage(0);
       fetchData();
     }, 0);
@@ -158,7 +153,7 @@ export default function ReportTable() {
     const { 
       filterDept, filterSupplier, filterStatus, filterClass, filterType, filterTag,
       search, filterItemCode, filterTerm
-    } = appliedFilters;
+    } = reportFilters; // Dùng trực tiếp từ store để 'lọc mờ' instant
 
     // 1. Filter Logic (Sub-string matches for better UX)
     if (filterDept) d = d.filter(r => r.header.dept === filterDept);
@@ -211,7 +206,7 @@ export default function ReportTable() {
     });
 
     return d;
-  }, [allReports, appliedFilters]);
+  }, [allReports, reportFilters]); // Theo dõi trực tiếp reportFilters
 
   // Pagination Logic
   const paginatedReports = useMemo(() => {
@@ -220,7 +215,23 @@ export default function ReportTable() {
   }, [filteredReports, currentPage, pageSize]);
 
   const totalFilteredCount = filteredReports.length;
-  const hasMore = (currentPage + 1) * pageSize < totalFilteredCount;
+  const totalPages = Math.ceil(totalFilteredCount / pageSize);
+  const hasMore = (currentPage + 1) < totalPages;
+
+  // Pagination Range Helper
+  const getPageRange = () => {
+    const range: (number | string)[] = [];
+    const delta = 2; // Show 2 pages around current
+    
+    for (let i = 0; i < totalPages; i++) {
+       if (i === 0 || i === totalPages - 1 || (i >= currentPage - delta && i <= currentPage + delta)) {
+          range.push(i);
+       } else if (range[range.length - 1] !== '...') {
+          range.push('...');
+       }
+    }
+    return range;
+  };
 
   const displayRows = useMemo(() => {
     if (!detailIncident) return paginatedReports.map(r => ({ type: 'report', data: r } as const));
@@ -286,11 +297,11 @@ export default function ReportTable() {
             </label>
 
             <button 
-              className={`btn btn-primary !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30 shadow-lg' : 'opacity-90 shadow-sm'}`}
-              onClick={handleSearch}
-              title="Lọc toàn bộ dữ liệu (Enter)"
+              className={`btn btn-primary !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${loading ? 'animate-spin' : 'shadow-sm opacity-90'}`}
+              onClick={() => fetchData(true)}
+              title="Đồng bộ dữ liệu mới nhất từ Server"
             >
-              <Search size={22} strokeWidth={3} />
+              <RefreshCw size={22} strokeWidth={3} />
             </button>
 
             <button 
@@ -366,15 +377,24 @@ export default function ReportTable() {
                 />
               </div>
               
-              <div>
+              <div className="relative">
                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã hàng</label>
-                <input 
-                   list="codes-list"
-                   className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200" 
-                   placeholder="Gõ mã hàng..."
-                   value={filterItemCode || ''}
-                   onChange={e => setF({ filterItemCode: e.target.value })}
-                />
+                <div className="relative">
+                  <input 
+                     list="codes-list"
+                     className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200 pr-7" 
+                     placeholder="Gõ mã hàng..."
+                     value={filterItemCode || ''}
+                     onChange={e => { setF({ filterItemCode: e.target.value }); setCurrentPage(0); }}
+                  />
+                  {filterItemCode && (
+                    <X 
+                      size={14} 
+                      className="absolute right-2 top-2.5 text-slate-400 cursor-pointer hover:text-red-500 transition-colors" 
+                      onClick={() => { setF({ filterItemCode: '' }); setCurrentPage(0); }} 
+                    />
+                  )}
+                </div>
                 <datalist id="codes-list">
                    {Array.from(new Set((masterData['item'] || []).map(i => i.key))).map(k => <option key={k} value={k} />)}
                 </datalist>
@@ -589,32 +609,46 @@ export default function ReportTable() {
                 <select
                   className="form-select w-16 !h-7 !py-0 border-slate-300 bg-white"
                   value={pageSize}
-                  onChange={e => handlePageSizeChange(Number(e.target.value))}
+                  onChange={e => { setF({ pageSize: Number(e.target.value) }); }}
                 >
                   {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
              </div>
            </div>
            
-           <div className="flex items-center gap-2">
+           <div className="flex items-center gap-1">
              <button 
-                className={`btn btn-outline !h-8 px-4 text-[12px] font-bold bg-white shadow-sm flex items-center gap-1 transition-all ${currentPage === 0 || loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`} 
+                className={`btn btn-ghost !h-8 w-8 p-0 flex items-center justify-center transition-all ${currentPage === 0 || loading ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:shadow-sm hover:text-blue-600'}`} 
                 onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                 disabled={currentPage === 0 || loading}
                 title="Trang trước"
              >
-               <ChevronLeft size={16} />
-               <span className="hidden sm:inline">Trang trước</span>
+               <ChevronLeft size={18} />
              </button>
 
+             <div className="flex items-center gap-1">
+                {getPageRange().map((p, idx) => {
+                  if (p === '...') return <span key={`dots-${idx}`} className="px-1 text-slate-400">...</span>;
+                  const pageNum = Number(p);
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`h-8 min-w-[32px] px-2 rounded-md transition-all text-[13px] font-bold ${currentPage === pageNum ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:shadow-sm hover:text-blue-600'}`}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  );
+                })}
+             </div>
+
              <button 
-                className={`btn btn-primary !h-8 px-4 text-[12px] font-bold shadow-sm flex items-center gap-1 transition-all ${!hasMore || loading ? 'opacity-40 cursor-not-allowed' : ''}`} 
+                className={`btn btn-ghost !h-8 w-8 p-0 flex items-center justify-center transition-all ${!hasMore || loading ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:shadow-sm hover:text-blue-600'}`} 
                 onClick={() => setCurrentPage(prev => prev + 1)} 
                 disabled={!hasMore || loading}
                 title="Trang sau"
              >
-               <span className="hidden sm:inline">Trang sau</span>
-               <ChevronRight size={16} />
+               <ChevronRight size={18} />
              </button>
            </div>
         </div>
