@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore, initReportsFromCache } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw, Check, ChevronDown } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw, Check, ChevronDown, Activity, Users, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 
 // --- MultiSelect Component ---
@@ -16,12 +16,14 @@ function MultiSelect({
   options, 
   selected, 
   onChange, 
+  icon: Icon,
   placeholder = "-- Tất cả --" 
 }: { 
   label: string; 
   options: { key: string; value: string }[]; 
   selected: string[]; 
   onChange: (vals: string[]) => void;
+  icon?: any;
   placeholder?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,21 +40,23 @@ function MultiSelect({
   }, []);
 
   const toggleOption = (val: string) => {
-    if (selected.includes(val)) {
-      onChange(selected.filter(v => v !== val));
-    } else {
-      onChange([...selected, val]);
-    }
+    const newSelected = selected.includes(val)
+      ? selected.filter(v => v !== val)
+      : [...selected, val];
+    onChange(newSelected);
   };
 
   return (
     <div className="relative" ref={containerRef}>
-      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{label}</label>
+      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1.5">
+        {Icon && <Icon size={12} className="text-blue-500" />}
+        {label}
+      </label>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between bg-slate-50 border rounded-md h-9 px-3 cursor-pointer transition-all hover:border-blue-400 ${isOpen ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200'}`}
+        className={`flex items-center justify-between bg-slate-50 border rounded-md h-9 px-3 cursor-pointer transition-all hover:border-blue-400 ${isOpen ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200'} ${selected.length > 0 ? 'bg-blue-50/30' : ''}`}
       >
-        <span className="text-[12px] font-medium truncate max-w-[120px]">
+        <span className="text-[12px] font-medium truncate max-w-[140px]">
           {selected.length === 0 ? placeholder : (
             selected.length === 1 ? options.find(o => o.key === selected[0])?.value || selected[0] : `Đã chọn ${selected.length}`
           )}
@@ -61,18 +65,18 @@ function MultiSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-md shadow-xl animate-in fade-in zoom-in-95 duration-100 p-1">
+        <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-md shadow-2xl animate-in fade-in zoom-in-95 duration-100 p-1">
           {options.length === 0 ? (
-            <div className="p-2 text-[12px] text-slate-400 italic">Không có dữ liệu</div>
+            <div className="p-2 text-[12px] text-slate-400 italic text-center">Không có dữ liệu</div>
           ) : (
             options.map(opt => (
               <div 
                 key={opt.key}
-                onClick={() => toggleOption(opt.key)}
+                onClick={(e) => { e.stopPropagation(); toggleOption(opt.key); }}
                 className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors text-[12px] ${selected.includes(opt.key) ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}
               >
-                <div className={`w-4 h-4 border rounded flex items-center justify-center transition-all ${selected.includes(opt.key) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
-                  {selected.includes(opt.key) && <Check size={12} className="text-white" />}
+                <div className={`w-4 h-4 border rounded flex items-center justify-center transition-all ${selected.includes(opt.key) ? 'bg-blue-600 border-blue-600 shadow-sm' : 'border-slate-300 bg-white'}`}>
+                  {selected.includes(opt.key) && <Check size={12} className="text-white" strokeWidth={3} />}
                 </div>
                 <span className="truncate">{opt.value}</span>
               </div>
@@ -408,6 +412,7 @@ export default function ReportTable() {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-white rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200 shadow-inner">
               <MultiSelect 
                 label="Trạng thái"
+                icon={Activity}
                 options={ALL_STATUSES.map(s => ({ key: s, value: s }))}
                 selected={filterStatus}
                 onChange={vals => setF({ filterStatus: vals })}
@@ -415,6 +420,7 @@ export default function ReportTable() {
               
               <MultiSelect 
                 label="Bộ phận"
+                icon={Users}
                 options={(masterData['dept'] || []).map(d => ({ key: d.key, value: d.value }))}
                 selected={filterDept}
                 onChange={vals => setF({ filterDept: vals })}
@@ -422,6 +428,7 @@ export default function ReportTable() {
               
               <MultiSelect 
                 label="Nhà cung cấp"
+                icon={Truck}
                 options={(masterData['supplier'] || []).map(s => ({ key: s.key, value: s.value }))}
                 selected={filterSupplier}
                 onChange={vals => setF({ filterSupplier: vals })}
@@ -684,7 +691,7 @@ export default function ReportTable() {
                 disabled={currentPage === 0 || loading}
                 title="Trang trước"
              >
-               <ChevronLeft size={18} />
+               <ChevronLeft size={20} strokeWidth={3} />
              </button>
 
              <div className="flex items-center gap-1">
@@ -709,7 +716,7 @@ export default function ReportTable() {
                 disabled={!hasMore || loading}
                 title="Trang sau"
              >
-               <ChevronRight size={18} />
+               <ChevronRight size={20} strokeWidth={3} />
              </button>
            </div>
         </div>
