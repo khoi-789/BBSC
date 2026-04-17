@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { BBSCReport } from '@/types';
-import { getReports, softDeleteReport } from '@/lib/services/reports';
+import { getReports, softDeleteReport, getReportsCount } from '@/lib/services/reports';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
@@ -32,6 +32,7 @@ export default function ReportTable() {
   const [appliedFilters, setAppliedFilters] = useState(reportFilters);
   const [isDirty, setIsDirty] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
 
   // Pagination Cursors
@@ -81,6 +82,22 @@ export default function ReportTable() {
         cursor,
         currentFilters.pageSize
       );
+
+      // Fetch count on search or first load
+      if (pageIndex === 0) {
+        const count = await getReportsCount({
+          dept: currentFilters.filterDept,
+          supplier: currentFilters.filterSupplier,
+          status: currentFilters.filterStatus || undefined,
+          class: currentFilters.filterClass,
+          type: currentFilters.filterType,
+          tag: currentFilters.filterTag,
+          reportId: currentFilters.search,
+          itemCode: currentFilters.filterItemCode,
+          globalItemSearch: currentFilters.filterTerm
+        });
+        setTotalCount(count);
+      }
 
       if (result.indexError) {
         setIndexError(result.indexError);
@@ -241,161 +258,163 @@ export default function ReportTable() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {indexError && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in">
-          <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
-          <div>
-            Hệ thống đang cần tạo Index mục lục để lọc thông tin này. Bạn là Admin có thể kích hoạt bằng cách 
-            <a href={indexError} target="_blank" rel="noreferrer" className="font-bold underline text-blue-600 hover:text-blue-800 ml-1">
-               bấm vào link này
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Search & Actions */}
-      <div className="card !p-2 flex flex-col gap-2 shadow-sm border-blue-100">
-        <div className="flex flex-nowrap items-center gap-3 w-full">
-          {/* Main Smart Search - general item search */}
-          <div className={`flex items-center bg-white rounded-md border h-10 px-3 transition-all flex-1 min-w-0 ${filterTerm ? 'ring-2 ring-blue-500/20 border-blue-500' : 'border-slate-300 focus-within:border-blue-500'}`}>
-            <Search size={18} className="text-slate-400 mr-2 flex-shrink-0" />
-            <input
-              className="outline-none text-[13px] w-full py-1 font-semibold bg-transparent"
-              placeholder="Gõ Tên sản phẩm hoặc Số lô..."
-              value={filterTerm || ''}
-              onChange={e => setF({ filterTerm: e.target.value })}
-              onKeyDown={handleKeyDown}
-            />
-            {filterTerm && <X size={14} className="text-slate-400 cursor-pointer hover:text-slate-600 shrink-0" onClick={() => setF({ filterTerm: '' })} />}
-          </div>
-
-          <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
-            <input type="checkbox" className="w-4 h-4 rounded border-slate-300" checked={detailClassification} onChange={e => setF({ detailClassification: e.target.checked })} />
-            <span className="text-[12px] font-bold text-slate-600 whitespace-nowrap hidden sm:block">Phân loại</span>
-          </label>
-          
-          <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
-            <input type="checkbox" className="w-4 h-4 rounded border-slate-300" checked={detailIncident} onChange={e => setF({ detailIncident: e.target.checked })} />
-            <span className="text-[12px] font-bold text-slate-600 whitespace-nowrap hidden sm:block">Chi tiết hàng</span>
-          </label>
-
-          <button 
-            className={`btn btn-primary !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30' : 'opacity-90'}`}
-            onClick={handleSearch}
-            title="Lọc toàn bộ dữ liệu (Enter)"
-          >
-            <Search size={20} strokeWidth={3} />
-          </button>
-
-          <button 
-            onClick={() => setF({ showAdvanced: !showAdvanced })}
-            className={`btn border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${showAdvanced ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600'}`}
-            title="Mở rộng bộ lọc"
-          >
-            <Filter size={20} />
-          </button>
-
-          <button 
-            onClick={() => { resetReportFilters(); setTimeout(handleSearch, 0); }} 
-            className="btn btn-ghost border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600" 
-            title="Làm mới"
-          >
-            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-          </button>
-
-          <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
-
-          <Link href="/create" className="btn btn-primary !h-10 px-4 text-[13px] shadow-sm flex items-center gap-2 shrink-0 hidden sm:flex">
-            <PlusCircle size={18} /> Tạo mới
-          </Link>
-        </div>
-
-        {/* Advanced Smart Filters */}
-        {showAdvanced && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-slate-50 rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200">
+    <div className="flex flex-col gap-2 relative">
+      <div className="sticky top-[108px] z-30 bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+        {indexError && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in mb-2">
+            <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Trạng thái</label>
-              <select
-                className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-white"
-                value={filterStatus || ''}
-                onChange={e => setF({ filterStatus: e.target.value })}
-              >
-                <option value="">-- Tất cả --</option>
-                {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              Hệ thống đang cần tạo Index mục lục để lọc thông tin này. Bạn là Admin có thể kích hoạt bằng cách 
+              <a href={indexError} target="_blank" rel="noreferrer" className="font-bold underline text-blue-600 hover:text-blue-800 ml-1">
+                 bấm vào link này
+              </a>
             </div>
-            
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Bộ phận</label>
-              <select className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-white" value={filterDept || ''} onChange={e => setF({ filterDept: e.target.value })}>
-                <option value="">-- Tất cả --</option>
-                {(masterData['dept'] || []).map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
-              </select>
-            </div>
-            
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nhà cung cấp</label>
-              <input 
-                 list="suppliers-list"
-                 className="form-input !h-9 !text-[12px] w-full font-medium" 
-                 placeholder="Chọn hoặc gõ tên..."
-                 value={filterSupplier || ''}
-                 onChange={e => setF({ filterSupplier: e.target.value })}
-              />
-              <datalist id="suppliers-list">
-                 {(masterData['supplier'] || []).map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
-              </datalist>
-            </div>
-            
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã sự cố</label>
-              <input 
-                 className="form-input !h-9 !text-[12px] w-full font-medium" 
-                 placeholder="Ví dụ: BBSC-0001..."
-                 value={search || ''}
-                 onChange={e => setF({ search: e.target.value.toUpperCase() })}
-                 onKeyDown={handleKeyDown}
-              />
-            </div>
-            
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã hàng</label>
-              <input 
-                 list="codes-list"
-                 className="form-input !h-9 !text-[12px] w-full font-medium" 
-                 placeholder="Gõ mã hàng..."
-                 value={filterItemCode || ''}
-                 onChange={e => setF({ filterItemCode: e.target.value })}
-              />
-              <datalist id="codes-list">
-                 {Array.from(new Set((masterData['item'] || []).map(i => i.key))).map(k => <option key={k} value={k} />)}
-              </datalist>
-            </div>
-
-            {profile?.role === 'Admin' && (
-              <div className="col-span-full pt-2 mt-2 border-t border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[11px] text-slate-500 italic max-w-lg">
-                  <Info size={14} className="text-blue-500 shrink-0" />
-                  <span>Dành cho Admin: Nếu dữ liệu cũ (trước tháng 4) không thể tìm thấy bằng Tìm kiếm chung, hãy dùng nút bấm này để tạo Mục lục tìm kiếm. (Chỉ cần bấm 1 lần).</span>
-                </div>
-                <button className="btn btn-ghost !h-8 px-3 border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 text-[11px] font-bold shrink-0" onClick={handleReindex}>
-                  <AlertTriangle size={13} />
-                  Bảo trì mục lục
-                </button>
-              </div>
-            )}
           </div>
         )}
+
+        {/* Hero Search & Actions */}
+        <div className="card !p-2 flex flex-col gap-2 shadow-sm border-blue-100 ring-1 ring-black/5">
+          <div className="flex flex-nowrap items-center gap-3 w-full">
+            {/* Main Smart Search - general item search */}
+            <div className={`flex items-center bg-white rounded-md border h-10 px-3 transition-all flex-1 min-w-0 ${filterTerm ? 'ring-2 ring-blue-500/20 border-blue-500' : 'border-slate-300 focus-within:border-blue-500'}`}>
+              <Search size={18} className="text-slate-400 mr-2 flex-shrink-0" />
+              <input
+                className="outline-none text-[13px] w-full py-1 font-semibold bg-transparent"
+                placeholder="Gõ Tên sản phẩm hoặc Số lô..."
+                value={filterTerm || ''}
+                onChange={e => setF({ filterTerm: e.target.value })}
+                onKeyDown={handleKeyDown}
+              />
+              {filterTerm && <X size={14} className="text-slate-400 cursor-pointer hover:text-slate-600 shrink-0" onClick={() => setF({ filterTerm: '' })} />}
+            </div>
+
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0 group">
+              <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer" checked={detailClassification} onChange={e => setF({ detailClassification: e.target.checked })} />
+              <span className="text-[12px] font-bold text-slate-600 group-hover:text-blue-600 transition-colors whitespace-nowrap hidden lg:block">Phân loại</span>
+            </label>
+            
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0 group">
+              <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer" checked={detailIncident} onChange={e => setF({ detailIncident: e.target.checked })} />
+              <span className="text-[12px] font-bold text-slate-600 group-hover:text-blue-600 transition-colors whitespace-nowrap hidden lg:block">Chi tiết hàng</span>
+            </label>
+
+            <button 
+              className={`btn btn-primary !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30 shadow-lg' : 'opacity-90 shadow-sm'}`}
+              onClick={handleSearch}
+              title="Lọc toàn bộ dữ liệu (Enter)"
+            >
+              <Search size={22} strokeWidth={3} />
+            </button>
+
+            <button 
+              onClick={() => setF({ showAdvanced: !showAdvanced })}
+              className={`btn border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${showAdvanced ? 'bg-blue-50 border-blue-300 text-blue-600 shadow-inner' : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm'}`}
+              title="Mở rộng bộ lọc"
+            >
+              <Filter size={20} />
+            </button>
+
+            <button 
+              onClick={() => { resetReportFilters(); setTimeout(handleSearch, 0); }} 
+              className="btn btn-ghost border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm" 
+              title="Làm mới"
+            >
+              <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+            </button>
+
+            <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
+
+            <Link href="/create" className="btn btn-primary !h-10 px-4 text-[13px] shadow-sm flex items-center gap-2 shrink-0 hidden sm:flex">
+              <PlusCircle size={18} /> Tạo mới
+            </Link>
+          </div>
+
+          {/* Advanced Smart Filters */}
+          {showAdvanced && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-white rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200 shadow-inner">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Trạng thái</label>
+                <select
+                  className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-slate-50 border-slate-200"
+                  value={filterStatus || ''}
+                  onChange={e => setF({ filterStatus: e.target.value })}
+                >
+                  <option value="">-- Tất cả --</option>
+                  {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Bộ phận</label>
+                <select className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-slate-50 border-slate-200" value={filterDept || ''} onChange={e => setF({ filterDept: e.target.value })}>
+                  <option value="">-- Tất cả --</option>
+                  {(masterData['dept'] || []).map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nhà cung cấp</label>
+                <input 
+                   list="suppliers-list"
+                   className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200" 
+                   placeholder="Chọn hoặc gõ tên..."
+                   value={filterSupplier || ''}
+                   onChange={e => setF({ filterSupplier: e.target.value })}
+                />
+                <datalist id="suppliers-list">
+                   {(masterData['supplier'] || []).map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
+                </datalist>
+              </div>
+              
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã sự cố</label>
+                <input 
+                   className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200" 
+                   placeholder="Ví dụ: BBSC-0001..."
+                   value={search || ''}
+                   onChange={e => setF({ search: e.target.value.toUpperCase() })}
+                   onKeyDown={handleKeyDown}
+                />
+              </div>
+              
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã hàng</label>
+                <input 
+                   list="codes-list"
+                   className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200" 
+                   placeholder="Gõ mã hàng..."
+                   value={filterItemCode || ''}
+                   onChange={e => setF({ filterItemCode: e.target.value })}
+                />
+                <datalist id="codes-list">
+                   {Array.from(new Set((masterData['item'] || []).map(i => i.key))).map(k => <option key={k} value={k} />)}
+                </datalist>
+              </div>
+
+              {profile?.role === 'Admin' && (
+                <div className="col-span-full pt-2 mt-2 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 italic max-w-lg">
+                    <Info size={14} className="text-blue-500 shrink-0" />
+                    <span>Dành cho Admin: Nếu dữ liệu cũ không tìm thấy bằng Tìm kiếm chung, hãy đồng bộ lại 1 lần.</span>
+                  </div>
+                  <button className="btn btn-ghost !h-8 px-3 border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 text-[11px] font-bold shrink-0 shadow-sm" onClick={handleReindex}>
+                    <AlertTriangle size={13} />
+                    Bảo trì mục lục
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-visible">
         <div className="overflow-x-auto">
           <table className="data-table">
-            <thead>
+            <thead className="sticky top-[162px] lg:top-[164px] z-20 shadow-sm transition-all">
               <tr>
-                <th className="whitespace-nowrap sticky-left">Mã sự cố</th>
+                <th className="whitespace-nowrap sticky-left transition-all">Mã sự cố</th>
                 <th className="whitespace-nowrap">Ngày lập</th>
                 <th className="whitespace-nowrap">Nhà cung cấp</th>
                 
@@ -586,6 +605,9 @@ export default function ReportTable() {
            <div className="flex flex-wrap items-center gap-4">
              <div className="text-[13px] text-slate-500 font-medium">
                 Đang xem trang <strong>{currentPage + 1}</strong> <span className="text-slate-400">({reports.length} dòng)</span>
+                {totalCount !== null && (
+                  <span className="ml-1 text-slate-500">trong <strong>{totalCount.toLocaleString()}</strong> kết quả</span>
+                )}
              </div>
              <div className="flex items-center gap-2 text-[12px] text-slate-500">
                 Hiển thị:

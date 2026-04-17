@@ -46,9 +46,9 @@ const DEFAULT_FILTERS: ReportFilters = {
   filterItemCode: '',
   filterLotNumber: '',
   filterItemName: '',
-  detailClassification: true,
+  detailClassification: false,
   detailIncident: false,
-  pageSize: 25,
+  pageSize: 10,
   page: 1,
 };
 

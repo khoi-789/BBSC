@@ -1,7 +1,7 @@
 import {
   collection, doc, query, where, orderBy,
   getDocs, getDoc, addDoc, updateDoc, Timestamp, runTransaction,
-  startAfter, QueryDocumentSnapshot, or
+  startAfter, QueryDocumentSnapshot, or, getCountFromServer
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BBSCReport, FilterState, ReportStatus } from '@/types';
@@ -153,6 +153,67 @@ export async function getReports(
       return { data: [], lastVisible: null, indexError: err.message };
     }
     throw err;
+  }
+}
+// ---- READ: Get Reports Count (Cheap: 1 read per 1000 docs) ----
+export async function getReportsCount(
+  filters: { 
+    dept?: string; 
+    supplier?: string;
+    class?: string;
+    type?: string;
+    tag?: string;
+    status?: string | string[];
+    reportId?: string;
+    itemCode?: string;
+    lotNumber?: string;
+    itemName?: string;
+    globalItemSearch?: string;
+  }
+): Promise<number> {
+  try {
+    let queryConstraints: any[] = [
+      where('isDeleted', '==', false)
+    ];
+
+    if (filters.reportId && filters.reportId.length > 5) {
+      const q = query(collection(db, COL), where('reportId', '==', filters.reportId.trim()));
+      const snap = await getCountFromServer(q);
+      return snap.data().count;
+    }
+
+    if (filters.globalItemSearch) {
+      const term = filters.globalItemSearch.trim();
+      queryConstraints.push(
+        or(
+          where('itemNames', 'array-contains', term),
+          where('lotNumbers', 'array-contains', term)
+        )
+      );
+    } else if (filters.itemCode) {
+      queryConstraints.push(where('itemCodes', 'array-contains', filters.itemCode));
+    }
+
+    if (filters.status) {
+      if (Array.isArray(filters.status)) {
+        queryConstraints.push(where('header.status', 'in', filters.status));
+      } else {
+        queryConstraints.push(where('header.status', '==', filters.status));
+      }
+    }
+
+    if (filters.dept) queryConstraints.push(where('header.dept', '==', filters.dept));
+    if (filters.supplier) queryConstraints.push(where('header.supplier', '==', filters.supplier));
+    if (filters.class) queryConstraints.push(where('header.classification', '==', filters.class));
+    if (filters.type) queryConstraints.push(where('header.incidentType', '==', filters.type));
+    if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
+
+    const q = query(collection(db, COL), ...queryConstraints);
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch (err) {
+    console.error('getReportsCount Error:', err);
+    return 0;
   }
 }
 
