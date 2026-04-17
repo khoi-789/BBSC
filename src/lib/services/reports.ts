@@ -90,9 +90,21 @@ export async function getReports(
       where('isDeleted', '==', false)
     ];
 
-    // 1. Priority 1: Exact Report ID Search (1 Read)
-    if (filters.reportId && filters.reportId.length > 5) {
-      const q = query(collection(db, COL), where('reportId', '==', filters.reportId.trim()));
+    // 1. Partial Report ID Search (Range Query)
+    if (filters.reportId && filters.reportId.length > 0) {
+      const term = filters.reportId.trim().toUpperCase();
+      // Use string range query for partial matches (e.g. "0162" -> "BBSC-0162...")
+      // If user typed '0162', we want to match BBSC-0162...
+      // Since report IDs always start with BBSC-, if term doesn't start with BBSC-, we prepend it for the range query to work properly, or we just rely on the user input.
+      const searchPrefix = term.startsWith('BBSC-') ? term : `BBSC-${term}`;
+      
+      queryConstraints.push(
+        where('reportId', '>=', searchPrefix),
+        where('reportId', '<=', searchPrefix + '\uf8ff')
+      );
+      // When using inequality operator, we cannot use other inequality or orderBy on different fields easily without composite indexes.
+      // So we return early for ID searches just like before, but now supporting partials.
+      const q = query(collection(db, COL), ...queryConstraints, limit(pageSize));
       const snap = await getDocs(q);
       return { data: snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport)), lastVisible: null };
     }
@@ -130,10 +142,20 @@ export async function getReports(
     if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
 
     // Order and Page
+    // Only order by createdAt if we aren't doing complex equality queries that would require endless exact-match composite indices.
+    // If status is filtered, we sort by status.
     if (filters.status) {
       queryConstraints.push(orderBy('header.status', 'asc')); 
     }
-    queryConstraints.push(orderBy('createdAt', 'desc'));
+    // To allow arbitrary filters (like supplier, type, etc) without creating 20+ composite indexes, 
+    // we omit the server-side createdAt orderBy when using those filters. 
+    // We will rely on NextJS/React client-side sorting since the active set per filter is small enough, 
+    // OR we just accept standard index behavior but remove `createdAt` to rely on auto-index for equality matches.
+    const hasComplexFilters = filters.dept || filters.supplier || filters.class || filters.type || filters.tag;
+    
+    if (!hasComplexFilters) {
+       queryConstraints.push(orderBy('createdAt', 'desc'));
+    }
     
     if (lastVisible) {
       queryConstraints.push(startAfter(lastVisible));
@@ -176,8 +198,15 @@ export async function getReportsCount(
       where('isDeleted', '==', false)
     ];
 
-    if (filters.reportId && filters.reportId.length > 5) {
-      const q = query(collection(db, COL), where('reportId', '==', filters.reportId.trim()));
+    if (filters.reportId && filters.reportId.length > 0) {
+      const term = filters.reportId.trim().toUpperCase();
+      const searchPrefix = term.startsWith('BBSC-') ? term : `BBSC-${term}`;
+      const q = query(
+        collection(db, COL), 
+        where('isDeleted', '==', false),
+        where('reportId', '>=', searchPrefix),
+        where('reportId', '<=', searchPrefix + '\uf8ff')
+      );
       const snap = await getCountFromServer(q);
       return snap.data().count;
     }

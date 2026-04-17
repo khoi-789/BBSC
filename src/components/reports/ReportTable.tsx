@@ -201,28 +201,10 @@ export default function ReportTable() {
       return pb.seq - pa.seq;
     });
 
-    const { 
-      filterStatus: fStat, filterSupplier: fSup, filterDept: fDept, 
-      filterPic: fPic, filterType: fTyp, filterTag: fTag, 
-      filterClass: fCls, search: fSrc, filterTerm: fTrm 
-    } = appliedFilters;
-
-    if (fStat) d = d.filter(r => r.header.status === fStat);
-    if (fSup) d = d.filter(r => r.header.supplier === fSup);
-    if (fDept) d = d.filter(r => r.header.dept === fDept);
-    if (fPic) d = d.filter(r => r.header.pic === fPic || r.header.subPic === fPic);
-    if (fTyp) d = d.filter(r => r.header.incidentType === fTyp);
-    if (fTag) d = d.filter(r => r.header.tags === fTag);
-    
-    if (fSrc) {
-      const s = fSrc.toLowerCase();
-      d = d.filter(r => r.reportId.toLowerCase().includes(s));
-    }
-    
-    if (fCls) {
-      d = d.filter(r => r.items.some(i => i.issueType === fCls));
-    }
-
+    // The backend already filters data when `getReports` is called. 
+    // We only need to apply local sorting because we removed `orderBy('createdAt')` 
+    // for some complex queries on the backend to avoid index limits.
+    // So we just return the sorted `d` array here.
     return d;
   }, [reports, appliedFilters]);
 
