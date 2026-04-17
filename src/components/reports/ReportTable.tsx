@@ -409,12 +409,12 @@ export default function ReportTable() {
       </div>
 
       {/* Table Section */}
-      <div className="card p-0 overflow-visible flex flex-col">
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="data-table min-w-[1400px]">
-            <thead className="sticky top-0 z-40 shadow-sm group">
+      <div className="card p-0 overflow-hidden flex flex-col border shadow-md">
+        <div className="overflow-auto custom-scrollbar max-h-[75vh]">
+          <table className="data-table min-w-[1600px] border-separate border-spacing-0">
+            <thead>
               <tr className="bg-slate-800">
-                <th className="whitespace-nowrap sticky-left z-50">Mã sự cố</th>
+                <th className="whitespace-nowrap sticky-left z-50" style={{ top: 0 }}>Mã sự cố</th>
                 <th className="whitespace-nowrap">Ngày lập</th>
                 <th className="whitespace-nowrap">Nhà cung cấp</th>
                 

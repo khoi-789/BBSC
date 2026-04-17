@@ -116,7 +116,9 @@
   padding: 0.4rem 0.6rem;
   text-align: left;
   white-space: nowrap;
-  /* Removed border-radius for flatter look */
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 .data-table td {
   padding: 0.35rem 0.6rem;
@@ -151,7 +153,7 @@
 .data-table th.sticky-right-0,
 .data-table th.sticky-right-1 {
   background: #1a56a0 !important;
-  z-index: 20;
+  z-index: 40;
 }
 
 .data-table td.sticky-left,
