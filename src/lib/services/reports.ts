@@ -1,7 +1,7 @@
 import {
   collection, doc, query, where, orderBy,
   getDocs, getDoc, addDoc, updateDoc, Timestamp, runTransaction,
-  startAfter, QueryDocumentSnapshot
+  startAfter, QueryDocumentSnapshot, or
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BBSCReport, FilterState, ReportStatus } from '@/types';
@@ -76,6 +76,7 @@ export async function getReports(
     itemCode?: string;
     lotNumber?: string;
     itemName?: string;
+    globalItemSearch?: string;
   }, 
   lastVisible?: any, 
   pageSize = 25
@@ -97,7 +98,15 @@ export async function getReports(
     }
 
     // 2. Priority 2: Smart Search via Array-Contains (Fast & Cheap)
-    if (filters.itemCode) {
+    if (filters.globalItemSearch) {
+      const term = filters.globalItemSearch.trim();
+      queryConstraints.push(
+        or(
+          where('itemNames', 'array-contains', term),
+          where('lotNumbers', 'array-contains', term)
+        )
+      );
+    } else if (filters.itemCode) {
       queryConstraints.push(where('itemCodes', 'array-contains', filters.itemCode));
     } else if (filters.lotNumber) {
       queryConstraints.push(where('lotNumbers', 'array-contains', filters.lotNumber));

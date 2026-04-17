@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -31,15 +31,18 @@ export default function ReportTable() {
   // Search Metadata
   const [appliedFilters, setAppliedFilters] = useState(reportFilters);
   const [isDirty, setIsDirty] = useState(false);
-  const [lastVisible, setLastVisible] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const [indexError, setIndexError] = useState<string | null>(null);
+
+  // Pagination Cursors
+  const [pageCursors, setPageCursors] = useState<any[]>([null]);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const {
     search, filterStatus, showAdvanced, filterSupplier, filterClass,
     filterType, filterDept, filterPic, filterTag, filterTerm,
     filterItemCode, filterLotNumber, filterItemName,
-    detailClassification, detailIncident, pageSize, page
+    detailClassification, detailIncident, pageSize
   } = reportFilters;
 
   useEffect(() => {
@@ -49,55 +52,73 @@ export default function ReportTable() {
 
   const setF = (updates: any) => setReportFilters(updates);
 
-  // ---- FETCH LOGIC (Unified) ----
-  const fetchData = useCallback(async (isLoadMore = false) => {
-    if (!isLoadMore) {
-      setLoading(true);
-      setReports([]);
-      setLastVisible(null);
-    }
+  // ---- FETCH LOGIC (Unified + Next/Prev Cursors) ----
+  const fetchData = useCallback(async (pageIndex: number = 0) => {
+    setLoading(true);
     setIndexError(null);
-    setAppliedFilters(reportFilters);
+    
+    // Always use latest values from global store to avoid stale closures
+    const state = useAppStore.getState();
+    const currentFilters = state.reportFilters;
+
+    setAppliedFilters(currentFilters);
     setIsDirty(false);
 
     try {
+      const cursor = pageCursors[pageIndex];
       const result = await getReports(
         { 
-          dept: filterDept, 
-          supplier: filterSupplier,
-          status: filterStatus || undefined,
-          class: filterClass,
-          type: filterType,
-          tag: filterTag,
-          reportId: search,
-          itemCode: filterItemCode,
-          lotNumber: filterLotNumber,
-          itemName: filterItemName
+          dept: currentFilters.filterDept, 
+          supplier: currentFilters.filterSupplier,
+          status: currentFilters.filterStatus || undefined,
+          class: currentFilters.filterClass,
+          type: currentFilters.filterType,
+          tag: currentFilters.filterTag,
+          reportId: currentFilters.search, 
+          itemCode: currentFilters.filterItemCode,
+          globalItemSearch: currentFilters.filterTerm
         },
-        isLoadMore ? lastVisible : null,
-        pageSize
+        cursor,
+        currentFilters.pageSize
       );
 
       if (result.indexError) {
         setIndexError(result.indexError);
         setHasMore(false);
       } else {
-        setReports(prev => isLoadMore ? [...prev, ...result.data] : result.data);
-        setLastVisible(result.lastVisible);
-        setHasMore(result.data.length === pageSize);
+        setReports(result.data);
+        setCurrentPage(pageIndex);
+        
+        // Cache the NEXT page's start cursor
+        const nextCursors = [...pageCursors];
+        nextCursors[pageIndex + 1] = result.lastVisible;
+        setPageCursors(nextCursors);
+        
+        setHasMore(result.data.length === currentFilters.pageSize);
       }
     } catch (e: any) {
       toast(e.message || 'Lỗi tải dữ liệu', 'error');
     } finally {
       setLoading(false);
     }
-  }, [reportFilters, lastVisible]);
+  }, [pageCursors, toast]);
 
   useEffect(() => {
-    fetchData(false);
+    fetchData(0);
   }, []); // Initial load
 
-  const handleSearch = () => fetchData(false);
+  const handleSearch = () => {
+    setPageCursors([null]);
+    fetchData(0);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setF({ pageSize: newSize });
+    setTimeout(() => {
+      setPageCursors([null]);
+      fetchData(0);
+    }, 0);
+  };
 
   const handleReindex = async () => {
     if (!profile || profile.role !== 'Admin') return;
@@ -105,16 +126,13 @@ export default function ReportTable() {
     
     setLoading(true);
     try {
-      // 1. Get all reports (Legacy fetcher)
       const { getReportsLegacy, updateReport } = await import('@/lib/services/reports');
       const all = await getReportsLegacy();
       
       toast(`Bắt đầu xử lý ${all.length} dòng...`, 'info');
       
-      // 2. Update each with its own items
       let count = 0;
       for (const r of all) {
-        // Calling updateReport will automatically invoke prepareSearchIndices
         await updateReport(r.id, { items: r.items }, profile.uid, profile.displayName);
         count++;
         if (count % 100 === 0) toast(`Đã xử lý ${count}/${all.length}...`, 'info');
@@ -150,8 +168,6 @@ export default function ReportTable() {
 
   const filteredReports = useMemo(() => {
     let d = [...reports];
-    
-    // Sort logic remains independent...
     d.sort((a, b) => {
       const parseId = (id: string) => {
         const parts = id.split('-');
@@ -168,7 +184,6 @@ export default function ReportTable() {
       return pb.seq - pa.seq;
     });
 
-    // Use appliedFilters instead of drect reportFilters for the Actual List
     const { 
       filterStatus: fStat, filterSupplier: fSup, filterDept: fDept, 
       filterPic: fPic, filterType: fTyp, filterTag: fTag, 
@@ -182,20 +197,9 @@ export default function ReportTable() {
     if (fTyp) d = d.filter(r => r.header.incidentType === fTyp);
     if (fTag) d = d.filter(r => r.header.tags === fTag);
     
-    if (fSrc || fTrm) {
-      const s = (fSrc || fTrm).toLowerCase();
-      d = d.filter(r =>
-        r.reportId.toLowerCase().includes(s) ||
-        r.header.supplier?.toLowerCase().includes(s) ||
-        r.header.invoiceNo?.toLowerCase().includes(s) ||
-        r.header.note?.toLowerCase().includes(s) ||
-        r.items.some(i => 
-          i.itemCode?.toLowerCase().includes(s) || 
-          i.itemName?.toLowerCase().includes(s) || 
-          i.batchNo?.toLowerCase().includes(s) ||
-          i.note?.toLowerCase().includes(s)
-        )
-      );
+    if (fSrc) {
+      const s = fSrc.toLowerCase();
+      d = d.filter(r => r.reportId.toLowerCase().includes(s));
     }
     
     if (fCls) {
@@ -205,33 +209,24 @@ export default function ReportTable() {
     return d;
   }, [reports, appliedFilters]);
 
-  // Transform into display rows based on mode
   const displayRows = useMemo(() => {
-    if (!detailIncident) return reports.map(r => ({ type: 'report', data: r } as const));
+    if (!detailIncident) return filteredReports.map(r => ({ type: 'report', data: r } as const));
 
     const rows: { type: 'item', report: BBSCReport, item: any, itemIndex: number }[] = [];
-    reports.forEach(r => {
+    filteredReports.forEach(r => {
       if (!r.items) return;
       r.items.forEach((item, idx) => {
         rows.push({ type: 'item', report: r, item, itemIndex: idx });
       });
     });
     return rows;
-  }, [reports, detailIncident]);
-
-  const paginatedRows = displayRows;
-
-
-  function resetFilters() {
-    resetReportFilters();
-  }
+  }, [filteredReports, detailIncident]);
 
   async function handleDelete(r: BBSCReport) {
     if (!profile) return;
     const reason = prompt(`Lý do xóa phiếu ${r.reportId}:`);
     if (reason === null) return;
     
-    // Phase 3: Optimistic UI Delete
     const originalReports = [...reports];
     setReports(prev => prev.filter(report => report.id !== r.id));
     
@@ -261,126 +256,138 @@ export default function ReportTable() {
 
       {/* Hero Search & Actions */}
       <div className="card !p-2 flex flex-col gap-2 shadow-sm border-blue-100">
-        <div className="flex flex-nowrap items-center gap-2">
-          {/* Main Smart Search */}
-          <div className={`flex items-center bg-white rounded-md border border-slate-300 h-10 px-3 transition-all flex-1 min-w-0 ${search ? 'ring-2 ring-blue-500/20 border-blue-500' : 'focus-within:border-blue-500'}`}>
+        <div className="flex flex-nowrap items-center gap-3 w-full">
+          {/* Main Smart Search - general item search */}
+          <div className={`flex items-center bg-white rounded-md border h-10 px-3 transition-all flex-1 min-w-0 ${filterTerm ? 'ring-2 ring-blue-500/20 border-blue-500' : 'border-slate-300 focus-within:border-blue-500'}`}>
             <Search size={18} className="text-slate-400 mr-2 flex-shrink-0" />
             <input
               className="outline-none text-[13px] w-full py-1 font-semibold bg-transparent"
-              placeholder="Gõ mã BBSC đầy đủ (ví dụ BBSC-0001-0426) rồi nhấn ENTER..."
-              value={search}
-              onChange={e => setF({ search: e.target.value.toUpperCase() })}
+              placeholder="Gõ Tên sản phẩm hoặc Số lô..."
+              value={filterTerm || ''}
+              onChange={e => setF({ filterTerm: e.target.value })}
               onKeyDown={handleKeyDown}
             />
-            {search && <X size={14} className="text-slate-400 cursor-pointer hover:text-slate-600" onClick={() => setF({ search: '' })} />}
+            {filterTerm && <X size={14} className="text-slate-400 cursor-pointer hover:text-slate-600 shrink-0" onClick={() => setF({ filterTerm: '' })} />}
           </div>
 
+          <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+            <input type="checkbox" className="w-4 h-4 rounded border-slate-300" checked={detailClassification} onChange={e => setF({ detailClassification: e.target.checked })} />
+            <span className="text-[12px] font-bold text-slate-600 whitespace-nowrap hidden sm:block">Phân loại</span>
+          </label>
+          
+          <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+            <input type="checkbox" className="w-4 h-4 rounded border-slate-300" checked={detailIncident} onChange={e => setF({ detailIncident: e.target.checked })} />
+            <span className="text-[12px] font-bold text-slate-600 whitespace-nowrap hidden sm:block">Chi tiết hàng</span>
+          </label>
+
           <button 
-            className={`btn btn-primary !h-10 !w-14 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30' : 'opacity-90'}`}
+            className={`btn btn-primary !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${isDirty ? 'animate-pulse ring-4 ring-blue-500/30' : 'opacity-90'}`}
             onClick={handleSearch}
             title="Lọc toàn bộ dữ liệu (Enter)"
           >
-            <Search size={22} strokeWidth={3} />
+            <Search size={20} strokeWidth={3} />
           </button>
 
-          <button onClick={handleSearch} className="btn btn-ghost border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center bg-white shadow-sm" title="Làm mới">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          <button 
+            onClick={() => setF({ showAdvanced: !showAdvanced })}
+            className={`btn border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${showAdvanced ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600'}`}
+            title="Mở rộng bộ lọc"
+          >
+            <Filter size={20} />
           </button>
 
-          <div className="w-px h-6 bg-slate-200 mx-1"></div>
+          <button 
+            onClick={() => { resetReportFilters(); setTimeout(handleSearch, 0); }} 
+            className="btn btn-ghost border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600" 
+            title="Làm mới"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+          </button>
 
-          <Link href="/create" className="btn btn-primary !h-10 px-4 text-[13px] shadow-sm flex items-center gap-2">
+          <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
+
+          <Link href="/create" className="btn btn-primary !h-10 px-4 text-[13px] shadow-sm flex items-center gap-2 shrink-0 hidden sm:flex">
             <PlusCircle size={18} /> Tạo mới
           </Link>
         </div>
 
-        {/* Row 2: Basic Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-           <select
-              className="form-select !w-36 !h-8 !py-0 text-[12px] border-slate-300 !bg-white font-medium"
-              value={filterStatus}
-              onChange={e => setF({ filterStatus: e.target.value })}
-            >
-              <option value="">-- Tất cả trạng thái --</option>
-              {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-
-            <select className="form-select !w-36 !h-8 !py-0 text-[12px] border-slate-300 !bg-white font-medium" value={filterDept} onChange={e => setF({ filterDept: e.target.value })}>
-              <option value="">-- Tất cả bộ phận --</option>
-              {(masterData['dept'] || []).map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
-            </select>
-
-            <div className="flex-1"></div>
-
-            <div className="flex items-center gap-3 px-2">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300" checked={detailClassification} onChange={e => setF({ detailClassification: e.target.checked })} />
-              <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Phân loại</span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300" checked={detailIncident} onChange={e => setF({ detailIncident: e.target.checked })} />
-              <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Chi tiết hàng</span>
-            </label>
-            <button className={`btn btn-ghost !h-8 !w-8 p-0 border border-slate-200 ${showAdvanced ? 'bg-blue-50 border-blue-300' : 'bg-white'}`} onClick={() => setF({ showAdvanced: !showAdvanced })}>
-              <Filter size={16} className={showAdvanced ? 'text-blue-600' : 'text-slate-500'} />
-            </button>
-            {profile?.role === 'Admin' && (
-              <button className="btn btn-ghost !h-8 !w-8 p-0 border border-slate-200 bg-white" title="Bảo trì mục lục (Re-index)" onClick={handleReindex}>
-                <RefreshCw size={14} className="text-amber-600" />
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Advanced Smart Filters */}
         {showAdvanced && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-slate-50 rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-slate-50 rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200">
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Tên sản phẩm (Gõ chọn)</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Trạng thái</label>
+              <select
+                className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-white"
+                value={filterStatus || ''}
+                onChange={e => setF({ filterStatus: e.target.value })}
+              >
+                <option value="">-- Tất cả --</option>
+                {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Bộ phận</label>
+              <select className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-white" value={filterDept || ''} onChange={e => setF({ filterDept: e.target.value })}>
+                <option value="">-- Tất cả --</option>
+                {(masterData['dept'] || []).map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
+              </select>
+            </div>
+            
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nhà cung cấp</label>
               <input 
-                 list="names-list"
-                 className="form-input !h-8 !text-[12px] font-medium" 
-                 placeholder="Chọn tên sản phẩm..."
-                 value={filterItemName}
-                 onChange={e => setF({ filterItemName: e.target.value })}
+                 list="suppliers-list"
+                 className="form-input !h-9 !text-[12px] w-full font-medium" 
+                 placeholder="Chọn hoặc gõ tên..."
+                 value={filterSupplier || ''}
+                 onChange={e => setF({ filterSupplier: e.target.value })}
               />
-              <datalist id="names-list">
-                 {Array.from(new Set((masterData['item'] || []).map(i => i.value))).map(n => <option key={n} value={n} />)}
+              <datalist id="suppliers-list">
+                 {(masterData['supplier'] || []).map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
               </datalist>
             </div>
+            
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã hàng (Gõ chọn)</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã sự cố</label>
+              <input 
+                 className="form-input !h-9 !text-[12px] w-full font-medium" 
+                 placeholder="Ví dụ: BBSC-0001..."
+                 value={search || ''}
+                 onChange={e => setF({ search: e.target.value.toUpperCase() })}
+                 onKeyDown={handleKeyDown}
+              />
+            </div>
+            
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã hàng</label>
               <input 
                  list="codes-list"
-                 className="form-input !h-8 !text-[12px] font-medium" 
-                 placeholder="Chọn mã hàng..."
-                 value={filterItemCode}
+                 className="form-input !h-9 !text-[12px] w-full font-medium" 
+                 placeholder="Gõ mã hàng..."
+                 value={filterItemCode || ''}
                  onChange={e => setF({ filterItemCode: e.target.value })}
               />
               <datalist id="codes-list">
                  {Array.from(new Set((masterData['item'] || []).map(i => i.key))).map(k => <option key={k} value={k} />)}
               </datalist>
             </div>
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Số lô</label>
-              <input 
-                 className="form-input !h-8 !text-[12px] font-medium" 
-                 placeholder="Gõ chính xác số lô..."
-                 value={filterLotNumber}
-                 onChange={e => setF({ filterLotNumber: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nhà cung cấp</label>
-              <select className="form-select !h-8 !py-0 !text-[12px]" value={filterSupplier} onChange={e => setF({ filterSupplier: e.target.value })}>
-                <option value="">-- Tất cả --</option>
-                {(masterData['supplier'] || []).map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
-              </select>
-            </div>
+
+            {profile?.role === 'Admin' && (
+              <div className="col-span-full pt-2 mt-2 border-t border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 italic max-w-lg">
+                  <Info size={14} className="text-blue-500 shrink-0" />
+                  <span>Dành cho Admin: Nếu dữ liệu cũ (trước tháng 4) không thể tìm thấy bằng Tìm kiếm chung, hãy dùng nút bấm này để tạo Mục lục tìm kiếm. (Chỉ cần bấm 1 lần).</span>
+                </div>
+                <button className="btn btn-ghost !h-8 px-3 border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 text-[11px] font-bold shrink-0" onClick={handleReindex}>
+                  <AlertTriangle size={13} />
+                  Bảo trì mục lục
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
-
 
       {/* Table */}
       <div className="card p-0 overflow-hidden">
@@ -436,9 +443,9 @@ export default function ReportTable() {
                     ))}
                   </tr>
                 ))
-              ) : paginatedRows.length === 0 && !loading ? (
+              ) : displayRows.length === 0 && !loading ? (
                 <tr><td colSpan={15} className="text-center py-10 text-slate-400">Không có dữ liệu</td></tr>
-              ) : paginatedRows.map((row, rowIdx) => {
+              ) : displayRows.map((row, rowIdx) => {
                 if (row.type === 'item') {
                   const r = row.report;
                   const item = row.item;
@@ -511,7 +518,6 @@ export default function ReportTable() {
                     </tr>
                   );
                 } else {
-                  // Summary mode
                   const r = row.data;
                   const date = r.header.createdDate || '—';
                   const firstItem = r.items?.[0];
@@ -575,38 +581,45 @@ export default function ReportTable() {
           </table>
         </div>
 
-        {/* Unified Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50">
-           <div className="flex items-center gap-4">
+        {/* Cursors-based Prev/Next Pagination */}
+        <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 gap-4">
+           <div className="flex flex-wrap items-center gap-4">
              <div className="text-[13px] text-slate-500 font-medium">
-                Đang hiện <strong>{reports.length}</strong> dòng {search ? `cho kết quả "${search}"` : ''}
+                Đang xem trang <strong>{currentPage + 1}</strong> <span className="text-slate-400">({reports.length} dòng)</span>
              </div>
              <div className="flex items-center gap-2 text-[12px] text-slate-500">
                 Hiển thị:
                 <select
-                  className="form-select w-16 !h-7 !py-0 border-slate-300"
+                  className="form-select w-16 !h-7 !py-0 border-slate-300 bg-white"
                   value={pageSize}
-                  onChange={e => setF({ pageSize: Number(e.target.value) })}
+                  onChange={e => handlePageSizeChange(Number(e.target.value))}
                 >
                   {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
              </div>
            </div>
            
-           {hasMore && (
+           <div className="flex items-center gap-2">
              <button 
-               className={`btn btn-outline !h-8 px-6 text-[12px] font-bold shadow-sm flex items-center gap-2 ${loading ? 'opacity-50' : ''}`} 
-               onClick={() => fetchData(true)} 
-               disabled={loading}
+               className={`btn btn-outline !h-8 px-4 text-[12px] font-bold bg-white shadow-sm flex items-center gap-1 transition-all ${currentPage === 0 || loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`} 
+               onClick={() => !loading && currentPage > 0 && fetchData(currentPage - 1)} 
+               disabled={currentPage === 0 || loading}
+               title="Trang trước"
              >
-               {loading ? <RefreshCw size={14} className="animate-spin" /> : null}
-               {loading ? 'Đang tải...' : 'Tải thêm dữ liệu ẩn...'}
+               <ChevronLeft size={16} />
+               <span className="hidden sm:inline">Trang trước</span>
              </button>
-           )}
-           
-           {!hasMore && reports.length > 0 && (
-             <div className="text-[11px] text-slate-400 font-italic">Đã tải hết kết quả phù hợp.</div>
-           )}
+
+             <button 
+               className={`btn btn-primary !h-8 px-4 text-[12px] font-bold shadow-sm flex items-center gap-1 transition-all ${!hasMore || loading ? 'opacity-40 cursor-not-allowed' : ''}`} 
+               onClick={() => !loading && hasMore && fetchData(currentPage + 1)} 
+               disabled={!hasMore || loading}
+               title="Trang sau"
+             >
+               <span className="hidden sm:inline">Trang sau</span>
+               <ChevronRight size={16} />
+             </button>
+           </div>
         </div>
       </div>
     </div>
