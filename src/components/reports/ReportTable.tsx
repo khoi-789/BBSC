@@ -6,8 +6,8 @@ import { syncReports, softDeleteReport } from '@/lib/services/reports';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
-import { useAppStore } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { useAppStore, initReportsFromCache } from '@/stores/appStore';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -83,12 +83,22 @@ export default function ReportTable() {
   }, [setAllReports, upsertReports, toast]);
 
   useEffect(() => {
+    initReportsFromCache();
     fetchData();
   }, []); // Initial load
 
   const handleSearch = () => {
     setCurrentPage(0);
-    fetchData(); // Vừa lọc local vừa check update từ server
+    fetchData(); 
+  };
+
+  const handleReset = () => {
+    resetReportFilters();
+    setTimeout(() => {
+      setAppliedFilters(useAppStore.getState().reportFilters);
+      setCurrentPage(0);
+      fetchData();
+    }, 0);
   };
 
   const handlePageSizeChange = (newSize: number) => {
@@ -150,7 +160,7 @@ export default function ReportTable() {
       search, filterItemCode, filterTerm
     } = appliedFilters;
 
-    // 1. Filter Logic (Replicating Server-side logic locally)
+    // 1. Filter Logic (Sub-string matches for better UX)
     if (filterDept) d = d.filter(r => r.header.dept === filterDept);
     if (filterSupplier) d = d.filter(r => r.header.supplier === filterSupplier);
     if (filterStatus) d = d.filter(r => r.header.status === filterStatus);
@@ -164,14 +174,22 @@ export default function ReportTable() {
     }
 
     if (filterItemCode) {
-      d = d.filter(r => r.itemCodes?.includes(filterItemCode));
+      const ic = filterItemCode.toUpperCase();
+      d = d.filter(r => 
+        r.itemCodes?.some((code: string) => code.toUpperCase().includes(ic)) ||
+        r.items?.some(item => item.itemCode.toUpperCase().includes(ic))
+      );
     }
 
     if (filterTerm) {
       const term = filterTerm.toLowerCase();
       d = d.filter(r => 
         r.itemNames?.some((name: string) => name.toLowerCase().includes(term)) ||
-        r.lotNumbers?.some((lot: string) => lot.toLowerCase().includes(term))
+        r.lotNumbers?.some((lot: string) => lot.toLowerCase().includes(term)) ||
+        r.items?.some(item => 
+          item.itemName.toLowerCase().includes(term) || 
+          item.batchNo.toLowerCase().includes(term)
+        )
       );
     }
 
@@ -238,17 +256,8 @@ export default function ReportTable() {
   return (
     <div className="flex flex-col h-full gap-2 relative overflow-hidden">
       <div className="flex-shrink-0 bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
-        {indexError && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in mb-2">
-            <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
-            <div>
-              Hệ thống đang cần tạo Index mục lục để lọc thông tin này. Bạn là Admin có thể kích hoạt bằng cách 
-              <a href={indexError} target="_blank" rel="noreferrer" className="font-bold underline text-blue-600 hover:text-blue-800 ml-1">
-                 bấm vào link này
-              </a>
-            </div>
-          </div>
-        )}
+        {/* Removed Index Required alert for improved UX and local filtering */}
+
 
         {/* Hero Search & Actions */}
         <div className="card !p-2 flex flex-col gap-2 shadow-sm border-blue-100 ring-1 ring-black/5">
@@ -293,12 +302,14 @@ export default function ReportTable() {
             </button>
 
             <button 
-              onClick={() => { resetReportFilters(); setTimeout(handleSearch, 0); }} 
-              className="btn btn-ghost border border-slate-200 !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm" 
-              title="Làm mới"
+              onClick={handleReset} 
+              className="btn btn-ghost border border-slate-200 !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-amber-600 hover:bg-amber-50 shadow-sm"
+              title="Reset bộ lọc"
             >
-              <RefreshCw size={24} strokeWidth={2.5} className={loading ? 'animate-spin text-blue-500' : ''} />
+              <RotateCcw size={24} strokeWidth={2.5} />
             </button>
+
+
 
             <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
 
@@ -369,18 +380,7 @@ export default function ReportTable() {
                 </datalist>
               </div>
 
-              {profile?.role === 'Admin' && (
-                <div className="col-span-full pt-2 mt-2 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 italic max-w-lg">
-                    <Info size={14} className="text-blue-500 shrink-0" />
-                    <span>Dành cho Admin: Nếu dữ liệu cũ không tìm thấy bằng Tìm kiếm chung, hãy đồng bộ lại 1 lần.</span>
-                  </div>
-                  <button className="btn btn-ghost !h-8 px-3 border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 text-[11px] font-bold shrink-0 shadow-sm" onClick={handleReindex}>
-                    <AlertTriangle size={13} />
-                    Bảo trì mục lục
-                  </button>
-                </div>
-              )}
+              {/* Removed Admin Index maintenance line */}
             </div>
           )}
         </div>

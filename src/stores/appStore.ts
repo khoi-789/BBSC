@@ -99,7 +99,15 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  setAllReports: (reports) => set({ allReports: reports, isReportsLoaded: true, lastSync: Date.now() }),
+  setAllReports: (reports) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bbsc_reports_cache', JSON.stringify({
+        data: reports,
+        lastSync: Date.now()
+      }));
+    }
+    set({ allReports: reports, isReportsLoaded: true, lastSync: Date.now() });
+  },
   
   upsertReports: (newDocs) => set((state) => {
     const updated = [...state.allReports];
@@ -111,6 +119,14 @@ export const useAppStore = create<AppState>((set) => ({
         updated.unshift(doc);
       }
     });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bbsc_reports_cache', JSON.stringify({
+        data: updated,
+        lastSync: Date.now()
+      }));
+    }
+
     return { allReports: updated, lastSync: Date.now() };
   }),
 
@@ -120,3 +136,17 @@ export const useAppStore = create<AppState>((set) => ({
 
   resetReportFilters: () => set({ reportFilters: DEFAULT_FILTERS }),
 }));
+
+// Helper to pre-load from cache before app starts
+export const initReportsFromCache = () => {
+  if (typeof window === 'undefined') return;
+  const cached = localStorage.getItem('bbsc_reports_cache');
+  if (cached) {
+    try {
+      const { data, lastSync } = JSON.parse(cached);
+      useAppStore.setState({ allReports: data, lastSync, isReportsLoaded: true });
+    } catch (e) {
+      console.error('Failed to parse reports cache');
+    }
+  }
+};
