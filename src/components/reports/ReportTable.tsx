@@ -259,7 +259,7 @@ export default function ReportTable() {
 
   return (
     <div className="flex flex-col gap-2 relative">
-      <div className="sticky top-[108px] z-30 bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+      <div className="bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
         {indexError && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in mb-2">
             <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
@@ -308,18 +308,18 @@ export default function ReportTable() {
 
             <button 
               onClick={() => setF({ showAdvanced: !showAdvanced })}
-              className={`btn border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all ${showAdvanced ? 'bg-blue-50 border-blue-300 text-blue-600 shadow-inner' : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm'}`}
+              className={`btn border border-slate-200 !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all ${showAdvanced ? 'bg-blue-50 border-blue-300 text-blue-600 shadow-inner' : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm'}`}
               title="Mở rộng bộ lọc"
             >
-              <Filter size={20} />
+              <Filter size={24} strokeWidth={2.5} />
             </button>
 
             <button 
               onClick={() => { resetReportFilters(); setTimeout(handleSearch, 0); }} 
-              className="btn btn-ghost border border-slate-200 !h-10 !w-10 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm" 
+              className="btn btn-ghost border border-slate-200 !h-10 !w-12 p-0 flex items-center justify-center flex-shrink-0 transition-all bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 shadow-sm" 
               title="Làm mới"
             >
-              <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+              <RefreshCw size={24} strokeWidth={2.5} className={loading ? 'animate-spin text-blue-500' : ''} />
             </button>
 
             <div className="w-px h-6 bg-slate-200 mx-1 shrink-0 hidden sm:block"></div>
@@ -408,13 +408,13 @@ export default function ReportTable() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-visible">
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead className="sticky top-[162px] lg:top-[164px] z-20 shadow-sm transition-all">
-              <tr>
-                <th className="whitespace-nowrap sticky-left transition-all">Mã sự cố</th>
+      {/* Table Section */}
+      <div className="card p-0 overflow-visible flex flex-col">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="data-table min-w-[1400px]">
+            <thead className="sticky top-0 z-40 shadow-sm group">
+              <tr className="bg-slate-800">
+                <th className="whitespace-nowrap sticky-left z-50">Mã sự cố</th>
                 <th className="whitespace-nowrap">Ngày lập</th>
                 <th className="whitespace-nowrap">Nhà cung cấp</th>
                 
