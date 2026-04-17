@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore, initReportsFromCache } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw, Check, ChevronDown, Activity, Users, Truck } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ArrowLeft, ArrowRight, Info, RotateCcw, Check, ChevronDown, Activity, Users, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 
 // --- MultiSelect Component ---
@@ -666,10 +666,10 @@ export default function ReportTable() {
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 gap-4">
-           {/* Left side: Page Size Selector (Simplified) */}
-           <div className="flex items-center gap-2 text-[12px] text-slate-500 font-medium">
-              Hiển thị:
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 gap-4">
+           {/* Left side: Page Size Selector (Now strictly on 1 line) */}
+           <div className="flex items-center gap-2 text-[12px] text-slate-500 font-bold whitespace-nowrap shrink-0">
+              <span className="hidden sm:inline">Hiển thị:</span>
               <select
                 className="form-select w-16 !h-8 !py-0 border-slate-300 bg-white rounded shadow-sm focus:ring-2 focus:ring-blue-500/20"
                 value={pageSize}
@@ -680,15 +680,15 @@ export default function ReportTable() {
               <span>dòng / trang</span>
            </div>
            
-           {/* Right side: Fixed-position Pagination */}
+           {/* Right side: Navigation buttons (Stabilized) */}
            <div className="flex items-center gap-1 ml-auto">
              <button 
-                className={`btn btn-ghost !h-8 w-8 p-0 flex items-center justify-center transition-all ${currentPage === 0 || loading ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:shadow-sm hover:text-blue-600'}`} 
+                className={`btn btn-ghost !h-8 !w-8 p-0 flex items-center justify-center transition-all bg-white border border-slate-200 ${currentPage === 0 || loading ? 'opacity-30 cursor-not-allowed grayscale' : 'hover:bg-blue-50 hover:text-blue-600 shadow-sm'}`} 
                 onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
                 disabled={currentPage === 0 || loading}
                 title="Trang trước"
              >
-               <ChevronLeft size={20} strokeWidth={3} />
+               <ArrowLeft size={16} strokeWidth={3} className="block" />
              </button>
 
              <div className="flex items-center gap-1">
@@ -708,12 +708,12 @@ export default function ReportTable() {
              </div>
 
              <button 
-                className={`btn btn-ghost !h-8 w-8 p-0 flex items-center justify-center transition-all ${!hasMore || loading ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:shadow-sm hover:text-blue-600'}`} 
+                className={`btn btn-ghost !h-8 !w-8 p-0 flex items-center justify-center transition-all bg-white border border-slate-200 ${!hasMore || loading ? 'opacity-30 cursor-not-allowed grayscale' : 'hover:bg-blue-50 hover:text-blue-600 shadow-sm'}`} 
                 onClick={() => setCurrentPage(prev => prev + 1)} 
                 disabled={!hasMore || loading}
                 title="Trang sau"
              >
-               <ChevronRight size={20} strokeWidth={3} />
+               <ArrowRight size={16} strokeWidth={3} className="block" />
              </button>
            </div>
         </div>
