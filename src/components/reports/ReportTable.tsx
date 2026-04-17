@@ -258,8 +258,8 @@ export default function ReportTable() {
   }
 
   return (
-    <div className="flex flex-col gap-2 relative">
-      <div className="bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+    <div className="flex flex-col h-full gap-2 relative overflow-hidden">
+      <div className="flex-shrink-0 bg-slate-100 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
         {indexError && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md flex items-start gap-2 text-sm animate-in fade-in mb-2">
             <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
@@ -409,8 +409,8 @@ export default function ReportTable() {
       </div>
 
       {/* Table Section */}
-      <div className="card p-0 overflow-hidden flex flex-col border shadow-md">
-        <div className="overflow-auto custom-scrollbar max-h-[75vh]">
+      <div className="card p-0 overflow-hidden flex flex-col border shadow-md flex-1 min-h-0">
+        <div className="overflow-auto custom-scrollbar flex-1">
           <table className="data-table min-w-[1600px] border-separate border-spacing-0">
             <thead>
               <tr className="bg-slate-800">
