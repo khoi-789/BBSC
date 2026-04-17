@@ -62,6 +62,38 @@ export function subscribeToActiveReports(callback: (reports: BBSCReport[]) => vo
   });
 }
 
+/**
+ * Cơ chế Đồng bộ hóa thông minh (Incremental Sync)
+ * @param lastSyncMillis Thời điểm đồng bộ cuối cùng (miliseconds)
+ * @returns Danh sách các phiếu mới hoặc có thay đổi
+ */
+export async function syncReports(lastSyncMillis: number): Promise<BBSCReport[]> {
+  try {
+    let q;
+    if (lastSyncMillis === 0) {
+      // Lần đầu tiên: Tải 2000 phiếu gần nhất (đủ cho quy mô hiện tại của BBSC)
+      q = query(
+        collection(db, COL),
+        orderBy('createdAt', 'desc'),
+        limit(2000)
+      );
+    } else {
+      // Các lần sau: Chỉ lấy những gì thay đổi sau thời điểm lastSync
+      q = query(
+        collection(db, COL),
+        where('updatedAt', '>', Timestamp.fromMillis(lastSyncMillis)),
+        orderBy('updatedAt', 'asc')
+      );
+    }
+
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as BBSCReport));
+  } catch (err) {
+    console.error('syncReports Error:', err);
+    throw err;
+  }
+}
+
 // ---- READ: Get Reports (Unified Paginated Fetcher) ----
 export async function getReports(
   filters: { 

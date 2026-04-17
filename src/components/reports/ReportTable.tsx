@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { BBSCReport } from '@/types';
-import { getReports, softDeleteReport, getReportsCount } from '@/lib/services/reports';
+import { syncReports, softDeleteReport } from '@/lib/services/reports';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
@@ -21,22 +21,21 @@ const formatDateDisplay = (dateStr: string) => {
 };
 
 export default function ReportTable() {
+  const { 
+    masterData, reportFilters, setReportFilters, resetReportFilters,
+    allReports, lastSync, setAllReports, upsertReports
+  } = useAppStore();
   const { profile } = useAuthStore();
-  const { masterData, reportFilters, setReportFilters, resetReportFilters } = useAppStore();
   const { toast } = useToast();
 
-  const [reports, setReports] = useState<BBSCReport[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Search Metadata
   const [appliedFilters, setAppliedFilters] = useState(reportFilters);
   const [isDirty, setIsDirty] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
 
-  // Pagination Cursors
-  const [pageCursors, setPageCursors] = useState<any[]>([null]);
+  // Pagination
   const [currentPage, setCurrentPage] = useState(0);
 
   const {
@@ -54,11 +53,10 @@ export default function ReportTable() {
   const setF = (updates: any) => setReportFilters(updates);
 
   // ---- FETCH LOGIC (Unified + Next/Prev Cursors) ----
-  const fetchData = useCallback(async (pageIndex: number = 0) => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     setLoading(true);
     setIndexError(null);
     
-    // Always use latest values from global store to avoid stale closures
     const state = useAppStore.getState();
     const currentFilters = state.reportFilters;
 
@@ -66,75 +64,36 @@ export default function ReportTable() {
     setIsDirty(false);
 
     try {
-      const cursor = pageCursors[pageIndex];
-      const result = await getReports(
-        { 
-          dept: currentFilters.filterDept, 
-          supplier: currentFilters.filterSupplier,
-          status: currentFilters.filterStatus || undefined,
-          class: currentFilters.filterClass,
-          type: currentFilters.filterType,
-          tag: currentFilters.filterTag,
-          reportId: currentFilters.search, 
-          itemCode: currentFilters.filterItemCode,
-          globalItemSearch: currentFilters.filterTerm
-        },
-        cursor,
-        currentFilters.pageSize
-      );
-
-      // Fetch count on search or first load
-      if (pageIndex === 0) {
-        const count = await getReportsCount({
-          dept: currentFilters.filterDept,
-          supplier: currentFilters.filterSupplier,
-          status: currentFilters.filterStatus || undefined,
-          class: currentFilters.filterClass,
-          type: currentFilters.filterType,
-          tag: currentFilters.filterTag,
-          reportId: currentFilters.search,
-          itemCode: currentFilters.filterItemCode,
-          globalItemSearch: currentFilters.filterTerm
-        });
-        setTotalCount(count);
+      // Dùng syncReports để lấy phần Diff (những gì thay đổi)
+      const syncTime = isRefresh ? 0 : state.lastSync;
+      const newDocs = await syncReports(syncTime);
+      
+      if (syncTime === 0) {
+        setAllReports(newDocs);
+      } else if (newDocs.length > 0) {
+        upsertReports(newDocs);
       }
-
-      if (result.indexError) {
-        setIndexError(result.indexError);
-        setHasMore(false);
-      } else {
-        setReports(result.data);
-        setCurrentPage(pageIndex);
-        
-        // Cache the NEXT page's start cursor
-        const nextCursors = [...pageCursors];
-        nextCursors[pageIndex + 1] = result.lastVisible;
-        setPageCursors(nextCursors);
-        
-        setHasMore(result.data.length === currentFilters.pageSize);
-      }
+      
+      setCurrentPage(0);
     } catch (e: any) {
-      toast(e.message || 'Lỗi tải dữ liệu', 'error');
+      toast(e.message || 'Lỗi đồng bộ dữ liệu', 'error');
     } finally {
       setLoading(false);
     }
-  }, [pageCursors, toast]);
+  }, [setAllReports, upsertReports, toast]);
 
   useEffect(() => {
-    fetchData(0);
+    fetchData();
   }, []); // Initial load
 
   const handleSearch = () => {
-    setPageCursors([null]);
-    fetchData(0);
+    setCurrentPage(0);
+    fetchData(); // Vừa lọc local vừa check update từ server
   };
 
   const handlePageSizeChange = (newSize: number) => {
     setF({ pageSize: newSize });
-    setTimeout(() => {
-      setPageCursors([null]);
-      fetchData(0);
-    }, 0);
+    setCurrentPage(0);
   };
 
   const handleReindex = async () => {
@@ -184,7 +143,39 @@ export default function ReportTable() {
   };
 
   const filteredReports = useMemo(() => {
-    let d = [...reports].filter(r => !r.isDeleted);
+    let d = allReports.filter(r => !r.isDeleted);
+    
+    const { 
+      filterDept, filterSupplier, filterStatus, filterClass, filterType, filterTag,
+      search, filterItemCode, filterTerm
+    } = appliedFilters;
+
+    // 1. Filter Logic (Replicating Server-side logic locally)
+    if (filterDept) d = d.filter(r => r.header.dept === filterDept);
+    if (filterSupplier) d = d.filter(r => r.header.supplier === filterSupplier);
+    if (filterStatus) d = d.filter(r => r.header.status === filterStatus);
+    if (filterClass) d = d.filter(r => r.header.classification === filterClass);
+    if (filterType) d = d.filter(r => r.header.incidentType === filterType);
+    if (filterTag) d = d.filter(r => r.header.tags === filterTag);
+
+    if (search) {
+      const s = search.toUpperCase();
+      d = d.filter(r => r.reportId.toUpperCase().includes(s));
+    }
+
+    if (filterItemCode) {
+      d = d.filter(r => r.itemCodes?.includes(filterItemCode));
+    }
+
+    if (filterTerm) {
+      const term = filterTerm.toLowerCase();
+      d = d.filter(r => 
+        r.itemNames?.some((name: string) => name.toLowerCase().includes(term)) ||
+        r.lotNumbers?.some((lot: string) => lot.toLowerCase().includes(term))
+      );
+    }
+
+    // 2. Sort Logic
     d.sort((a, b) => {
       const parseId = (id: string) => {
         const parts = id.split('-');
@@ -201,41 +192,46 @@ export default function ReportTable() {
       return pb.seq - pa.seq;
     });
 
-    // The backend already filters data when `getReports` is called. 
-    // We only need to apply local sorting because we removed `orderBy('createdAt')` 
-    // for some complex queries on the backend to avoid index limits.
-    // So we just return the sorted `d` array here.
     return d;
-  }, [reports, appliedFilters]);
+  }, [allReports, appliedFilters]);
+
+  // Pagination Logic
+  const paginatedReports = useMemo(() => {
+    const start = currentPage * pageSize;
+    return filteredReports.slice(start, start + pageSize);
+  }, [filteredReports, currentPage, pageSize]);
+
+  const totalFilteredCount = filteredReports.length;
+  const hasMore = (currentPage + 1) * pageSize < totalFilteredCount;
 
   const displayRows = useMemo(() => {
-    if (!detailIncident) return filteredReports.map(r => ({ type: 'report', data: r } as const));
+    if (!detailIncident) return paginatedReports.map(r => ({ type: 'report', data: r } as const));
 
     const rows: { type: 'item', report: BBSCReport, item: any, itemIndex: number }[] = [];
-    filteredReports.forEach(r => {
+    paginatedReports.forEach(r => {
       if (!r.items) return;
-      r.items.forEach((item, idx) => {
+      r.items.forEach((item: any, idx: number) => {
         rows.push({ type: 'item', report: r, item, itemIndex: idx });
       });
     });
     return rows;
-  }, [filteredReports, detailIncident]);
+  }, [paginatedReports, detailIncident]);
 
   async function handleDelete(r: BBSCReport) {
     if (!profile) return;
     const reason = prompt(`Lý do xóa phiếu ${r.reportId}:`);
     if (reason === null) return;
     
-    const originalReports = [...reports];
-    setReports(prev => prev.filter(report => report.id !== r.id));
-    
+    setLoading(true);
     try {
       await softDeleteReport(r.id, profile.uid, profile.displayName, reason);
       toast('Đã xóa phiếu thành công', 'success');
-      handleSearch(); 
+      // Sync lại để cập nhật isDeleted: true
+      await fetchData(); 
     } catch (e: any) {
-      setReports(originalReports);
-      toast(e.message || 'Lỗi thao tác, đã hoàn tác', 'error');
+      toast(e.message || 'Lỗi thao tác', 'error');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -434,7 +430,7 @@ export default function ReportTable() {
               </tr>
             </thead>
             <tbody>
-              {loading && reports.length === 0 ? (
+              {loading && allReports.length === 0 ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={`skeleton-${i}`} className="bg-white border-b border-slate-100">
                     {Array.from({ length: detailIncident ? 14 : 7 }).map((_, j) => (
@@ -582,14 +578,11 @@ export default function ReportTable() {
           </table>
         </div>
 
-        {/* Cursors-based Prev/Next Pagination */}
         <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 gap-4">
            <div className="flex flex-wrap items-center gap-4">
              <div className="text-[13px] text-slate-500 font-medium">
-                Đang xem trang <strong>{currentPage + 1}</strong> <span className="text-slate-400">({reports.length} dòng)</span>
-                {totalCount !== null && (
-                  <span className="ml-1 text-slate-500">trong <strong>{totalCount.toLocaleString()}</strong> kết quả</span>
-                )}
+                Đang xem trang <strong>{currentPage + 1}</strong> <span className="text-slate-400">({paginatedReports.length} dòng)</span>
+                <span className="ml-1 text-slate-500">trong <strong>{totalFilteredCount.toLocaleString()}</strong> kết quả</span>
              </div>
              <div className="flex items-center gap-2 text-[12px] text-slate-500">
                 Hiển thị:
@@ -605,20 +598,20 @@ export default function ReportTable() {
            
            <div className="flex items-center gap-2">
              <button 
-               className={`btn btn-outline !h-8 px-4 text-[12px] font-bold bg-white shadow-sm flex items-center gap-1 transition-all ${currentPage === 0 || loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`} 
-               onClick={() => !loading && currentPage > 0 && fetchData(currentPage - 1)} 
-               disabled={currentPage === 0 || loading}
-               title="Trang trước"
+                className={`btn btn-outline !h-8 px-4 text-[12px] font-bold bg-white shadow-sm flex items-center gap-1 transition-all ${currentPage === 0 || loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`} 
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
+                disabled={currentPage === 0 || loading}
+                title="Trang trước"
              >
                <ChevronLeft size={16} />
                <span className="hidden sm:inline">Trang trước</span>
              </button>
 
              <button 
-               className={`btn btn-primary !h-8 px-4 text-[12px] font-bold shadow-sm flex items-center gap-1 transition-all ${!hasMore || loading ? 'opacity-40 cursor-not-allowed' : ''}`} 
-               onClick={() => !loading && hasMore && fetchData(currentPage + 1)} 
-               disabled={!hasMore || loading}
-               title="Trang sau"
+                className={`btn btn-primary !h-8 px-4 text-[12px] font-bold shadow-sm flex items-center gap-1 transition-all ${!hasMore || loading ? 'opacity-40 cursor-not-allowed' : ''}`} 
+                onClick={() => setCurrentPage(prev => prev + 1)} 
+                disabled={!hasMore || loading}
+                title="Trang sau"
              >
                <span className="hidden sm:inline">Trang sau</span>
                <ChevronRight size={16} />

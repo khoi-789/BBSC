@@ -1,6 +1,6 @@
 'use client';
 import { create } from 'zustand';
-import { MasterDataMap } from '@/types';
+import { MasterDataMap, BBSCReport } from '@/types';
 import { getMasterData } from '@/lib/services/masterData';
 
 interface ReportFilters {
@@ -27,6 +27,14 @@ interface AppState {
   masterData: MasterDataMap;
   isMasterDataLoaded: boolean;
   loadMasterData: () => Promise<void>;
+  
+  // Tổng kho Reports
+  allReports: BBSCReport[];
+  lastSync: number; // timestamp
+  isReportsLoaded: boolean;
+  setAllReports: (reports: BBSCReport[]) => void;
+  upsertReports: (newOrModified: BBSCReport[]) => void;
+  
   reportFilters: ReportFilters;
   setReportFilters: (filters: Partial<ReportFilters>) => void;
   resetReportFilters: () => void;
@@ -55,6 +63,11 @@ const DEFAULT_FILTERS: ReportFilters = {
 export const useAppStore = create<AppState>((set) => ({
   masterData: {},
   isMasterDataLoaded: false,
+  
+  allReports: [],
+  lastSync: 0,
+  isReportsLoaded: false,
+
   reportFilters: DEFAULT_FILTERS,
 
   loadMasterData: async () => {
@@ -63,7 +76,6 @@ export const useAppStore = create<AppState>((set) => ({
         const cached = localStorage.getItem('master_data_cache');
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
-          // Check if cache is older than 12 hours
           const isExpired = Date.now() - timestamp > 12 * 60 * 60 * 1000;
           if (!isExpired) {
             set({ masterData: data, isMasterDataLoaded: true });
@@ -86,6 +98,21 @@ export const useAppStore = create<AppState>((set) => ({
       console.error('Failed to load master data:', e);
     }
   },
+
+  setAllReports: (reports) => set({ allReports: reports, isReportsLoaded: true, lastSync: Date.now() }),
+  
+  upsertReports: (newDocs) => set((state) => {
+    const updated = [...state.allReports];
+    newDocs.forEach(doc => {
+      const idx = updated.findIndex(r => r.id === doc.id);
+      if (idx > -1) {
+        updated[idx] = doc;
+      } else {
+        updated.unshift(doc);
+      }
+    });
+    return { allReports: updated, lastSync: Date.now() };
+  }),
 
   setReportFilters: (filters) => set((state) => ({
     reportFilters: { ...state.reportFilters, ...filters }
