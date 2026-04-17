@@ -5,20 +5,20 @@ import { getMasterData } from '@/lib/services/masterData';
 
 interface ReportFilters {
   search: string;
-  filterStatus: string;
-  showAdvanced: boolean;
-  filterSupplier: string;
+  filterStatus: string[];
+  filterSupplier: string[];
   filterClass: string;
   filterType: string;
-  filterDept: string;
+  filterDept: string[];
   filterPic: string;
   filterTag: string;
   filterTerm: string;
   filterItemCode: string;
-  filterLotNumber: string;
   filterItemName: string;
+  filterLotNumber: string;
   detailClassification: boolean;
   detailIncident: boolean;
+  showAdvanced: boolean;
   pageSize: number;
   page: number;
 }
@@ -42,20 +42,20 @@ interface AppState {
 
 const DEFAULT_FILTERS: ReportFilters = {
   search: '',
-  filterStatus: '',
-  showAdvanced: false,
-  filterSupplier: '',
+  filterStatus: [],
+  filterSupplier: [],
   filterClass: '',
   filterType: '',
-  filterDept: '',
+  filterDept: [],
   filterPic: '',
   filterTag: '',
   filterTerm: '',
   filterItemCode: '',
-  filterLotNumber: '',
   filterItemName: '',
+  filterLotNumber: '',
   detailClassification: false,
   detailIncident: false,
+  showAdvanced: false,
   pageSize: 10,
   page: 1,
 };

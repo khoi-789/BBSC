@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { BBSCReport } from '@/types';
 import { syncReports, softDeleteReport } from '@/lib/services/reports';
@@ -7,8 +7,82 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ui/ToastProvider';
 import { StatusBadge, ALL_STATUSES } from '@/components/ui/StatusBadge';
 import { useAppStore, initReportsFromCache } from '@/stores/appStore';
-import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Filter, Download, PlusCircle, Search, History, AlertTriangle, X, ChevronLeft, ChevronRight, Info, RotateCcw, Check, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
+
+// --- MultiSelect Component ---
+function MultiSelect({ 
+  label, 
+  options, 
+  selected, 
+  onChange, 
+  placeholder = "-- Tất cả --" 
+}: { 
+  label: string; 
+  options: { key: string; value: string }[]; 
+  selected: string[]; 
+  onChange: (vals: string[]) => void;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleOption = (val: string) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{label}</label>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between bg-slate-50 border rounded-md h-9 px-3 cursor-pointer transition-all hover:border-blue-400 ${isOpen ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200'}`}
+      >
+        <span className="text-[12px] font-medium truncate max-w-[120px]">
+          {selected.length === 0 ? placeholder : (
+            selected.length === 1 ? options.find(o => o.key === selected[0])?.value || selected[0] : `Đã chọn ${selected.length}`
+          )}
+        </span>
+        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-md shadow-xl animate-in fade-in zoom-in-95 duration-100 p-1">
+          {options.length === 0 ? (
+            <div className="p-2 text-[12px] text-slate-400 italic">Không có dữ liệu</div>
+          ) : (
+            options.map(opt => (
+              <div 
+                key={opt.key}
+                onClick={() => toggleOption(opt.key)}
+                className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors text-[12px] ${selected.includes(opt.key) ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}
+              >
+                <div className={`w-4 h-4 border rounded flex items-center justify-center transition-all ${selected.includes(opt.key) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                  {selected.includes(opt.key) && <Check size={12} className="text-white" />}
+                </div>
+                <span className="truncate">{opt.value}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -156,9 +230,9 @@ export default function ReportTable() {
     } = reportFilters; // Dùng trực tiếp từ store để 'lọc mờ' instant
 
     // 1. Filter Logic (Sub-string matches for better UX)
-    if (filterDept) d = d.filter(r => r.header.dept === filterDept);
-    if (filterSupplier) d = d.filter(r => r.header.supplier === filterSupplier);
-    if (filterStatus) d = d.filter(r => r.header.status === filterStatus);
+    if (filterDept.length > 0) d = d.filter(r => filterDept.includes(r.header.dept));
+    if (filterSupplier.length > 0) d = d.filter(r => filterSupplier.includes(r.header.supplier));
+    if (filterStatus.length > 0) d = d.filter(r => filterStatus.includes(r.header.status));
     if (filterClass) d = d.filter(r => r.header.classification === filterClass);
     if (filterType) d = d.filter(r => r.header.incidentType === filterType);
     if (filterTag) d = d.filter(r => r.header.tags === filterTag);
@@ -332,39 +406,26 @@ export default function ReportTable() {
           {/* Advanced Smart Filters */}
           {showAdvanced && (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-white rounded-md border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-200 shadow-inner">
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Trạng thái</label>
-                <select
-                  className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-slate-50 border-slate-200"
-                  value={filterStatus || ''}
-                  onChange={e => setF({ filterStatus: e.target.value })}
-                >
-                  <option value="">-- Tất cả --</option>
-                  {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <MultiSelect 
+                label="Trạng thái"
+                options={ALL_STATUSES.map(s => ({ key: s, value: s }))}
+                selected={filterStatus}
+                onChange={vals => setF({ filterStatus: vals })}
+              />
               
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Bộ phận</label>
-                <select className="form-select !h-9 !py-0 text-[12px] w-full font-medium bg-slate-50 border-slate-200" value={filterDept || ''} onChange={e => setF({ filterDept: e.target.value })}>
-                  <option value="">-- Tất cả --</option>
-                  {(masterData['dept'] || []).map(d => <option key={d.key} value={d.key}>{d.value}</option>)}
-                </select>
-              </div>
+              <MultiSelect 
+                label="Bộ phận"
+                options={(masterData['dept'] || []).map(d => ({ key: d.key, value: d.value }))}
+                selected={filterDept}
+                onChange={vals => setF({ filterDept: vals })}
+              />
               
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nhà cung cấp</label>
-                <input 
-                   list="suppliers-list"
-                   className="form-input !h-9 !text-[12px] w-full font-medium bg-slate-50 border-slate-200" 
-                   placeholder="Chọn hoặc gõ tên..."
-                   value={filterSupplier || ''}
-                   onChange={e => setF({ filterSupplier: e.target.value })}
-                />
-                <datalist id="suppliers-list">
-                   {(masterData['supplier'] || []).map(s => <option key={s.key} value={s.key}>{s.value}</option>)}
-                </datalist>
-              </div>
+              <MultiSelect 
+                label="Nhà cung cấp"
+                options={(masterData['supplier'] || []).map(s => ({ key: s.key, value: s.value }))}
+                selected={filterSupplier}
+                onChange={vals => setF({ filterSupplier: vals })}
+              />
               
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Mã sự cố</label>
