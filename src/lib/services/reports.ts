@@ -1,7 +1,7 @@
 import {
   collection, doc, query, where, orderBy,
   getDocs, getDoc, addDoc, updateDoc, Timestamp, runTransaction,
-  startAfter, QueryDocumentSnapshot, or, getCountFromServer
+  startAfter, QueryDocumentSnapshot, or, and, getCountFromServer
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BBSCReport, FilterState, ReportStatus } from '@/types';
@@ -141,11 +141,14 @@ export async function getReports(
     if (filters.type) queryConstraints.push(where('header.incidentType', '==', filters.type));
     if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
 
-    // Order and Page
+    // Order and Page (Cannot be inside and())
+    const filterConstraints = [...queryConstraints];
+    const orderAndPageConstraints: any[] = [];
+    
     // Only order by createdAt if we aren't doing complex equality queries that would require endless exact-match composite indices.
     // If status is filtered, we sort by status.
     if (filters.status) {
-      queryConstraints.push(orderBy('header.status', 'asc')); 
+      orderAndPageConstraints.push(orderBy('header.status', 'asc')); 
     }
     // To allow arbitrary filters (like supplier, type, etc) without creating 20+ composite indexes, 
     // we omit the server-side createdAt orderBy when using those filters. 
@@ -154,15 +157,19 @@ export async function getReports(
     const hasComplexFilters = filters.dept || filters.supplier || filters.class || filters.type || filters.tag;
     
     if (!hasComplexFilters) {
-       queryConstraints.push(orderBy('createdAt', 'desc'));
+       orderAndPageConstraints.push(orderBy('createdAt', 'desc'));
     }
     
     if (lastVisible) {
-      queryConstraints.push(startAfter(lastVisible));
+      orderAndPageConstraints.push(startAfter(lastVisible));
     }
-    queryConstraints.push(limit(pageSize));
+    orderAndPageConstraints.push(limit(pageSize));
 
-    const q = query(collection(db, COL), ...queryConstraints);
+    const q = query(
+      collection(db, COL), 
+      filterConstraints.length > 1 ? and(...filterConstraints) : filterConstraints[0], 
+      ...orderAndPageConstraints
+    );
     const snap = await getDocs(q);
     
     return {
@@ -237,7 +244,10 @@ export async function getReportsCount(
     if (filters.type) queryConstraints.push(where('header.incidentType', '==', filters.type));
     if (filters.tag) queryConstraints.push(where('header.tags', '==', filters.tag));
 
-    const q = query(collection(db, COL), ...queryConstraints);
+    const q = query(
+      collection(db, COL), 
+      queryConstraints.length > 1 ? and(...queryConstraints) : queryConstraints[0]
+    );
     const snap = await getCountFromServer(q);
     return snap.data().count;
   } catch (err) {
